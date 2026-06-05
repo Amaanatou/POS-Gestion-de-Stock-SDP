@@ -1,6 +1,6 @@
 -- ============================================================
 -- BASE DE DONNÉES : SunuStock — Gestion de Stock PME v1.0
--- Auteur  : Ndeye Maty Gueye
+-- Auteur  : Ndeye Maty Gaye
 -- Projet  : SunuStock — Application Web POS & Gestion de Stock
 -- Date    : Juin 2026
 -- UTILISATION : Ouvrir dans MySQL Workbench > cliquer ⚡
@@ -160,7 +160,7 @@ INSERT INTO alertes_stock (produit_id, type_alerte, quantite_actuelle, seuil) VA
 
 -- Comptes de test — mot de passe pour tous : password
 INSERT INTO utilisateurs (nom, prenom, email, mot_de_passe, role) VALUES
-  ('Gueye',   'Ndeye Maty','ndeye@sunustock.sn',   '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi','admin'),
+  ('Gaye',   'Ndeye Maty','ndeye@sunustock.sn',   '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi','admin'),
   ('Drame',   'Manetou',   'manetou@sunustock.sn',  '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi','manager'),
   ('Caissier','Test',      'caissier@sunustock.sn', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi','caissier');
 -- ⚠️ Changer les mots de passe en production avec password_hash()
