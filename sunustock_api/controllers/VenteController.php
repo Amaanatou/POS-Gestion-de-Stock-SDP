@@ -5,10 +5,11 @@ class VenteController {
     public function __construct(private PDO $pdo) {}
 
     public function creer(): void {
-        $user   = auth();
-        $d      = json_decode(file_get_contents('php://input'), true);
-        $lignes = $d['lignes']        ?? [];
-        $mode   = $d['mode_paiement'] ?? 'especes';
+        $user     = auth();
+        $d        = json_decode(file_get_contents('php://input'), true);
+        $lignes   = $d['lignes']        ?? [];
+        $mode     = $d['mode_paiement'] ?? 'especes';
+        $clientId = $d['client_id']     ?? null;   // client fidélité (optionnel)
 
         if (empty($lignes)) {
             http_response_code(400);
@@ -27,15 +28,16 @@ class VenteController {
                 $totalTVA += $tva;
             }
             $totalTTC = $totalHT + $totalTVA;
-            $numero   = 'VNT-' . date('Ymd') . '-' . strtoupper(substr(uniqid(), 0, 6));
+            // Numéro unique : date + 8 caractères aléatoires (anti-collision)
+            $numero   = 'VNT-' . date('Ymd') . '-' . strtoupper(bin2hex(random_bytes(4)));
 
             // Créer l'en-tête de vente
             $sv = $this->pdo->prepare(
                 'INSERT INTO ventes
-                 (numero, utilisateur_id, total_ht, total_tva, total_ttc, mode_paiement)
-                 VALUES (?, ?, ?, ?, ?, ?)'
+                 (numero, client_id, utilisateur_id, total_ht, total_tva, total_ttc, mode_paiement)
+                 VALUES (?, ?, ?, ?, ?, ?, ?)'
             );
-            $sv->execute([$numero, $user['id'], $totalHT, $totalTVA, $totalTTC, $mode]);
+            $sv->execute([$numero, $clientId ?: null, $user['id'], $totalHT, $totalTVA, $totalTTC, $mode]);
             $venteId = $this->pdo->lastInsertId();
 
             // Insérer les lignes + décrémenter le stock
@@ -85,12 +87,24 @@ class VenteController {
                 }
             }
 
+            // Cagnottage fidélité : 1 point par tranche de 1000 FCFA dépensés
+            $pointsGagnes = 0;
+            if ($clientId) {
+                $pointsGagnes = (int)floor($totalTTC / 1000);
+                if ($pointsGagnes > 0) {
+                    $this->pdo->prepare(
+                        'UPDATE clients SET points = points + ? WHERE id = ?'
+                    )->execute([$pointsGagnes, $clientId]);
+                }
+            }
+
             $this->pdo->commit();
             echo json_encode([
-                'success' => true,
-                'id'      => $venteId,
-                'numero'  => $numero,
-                'total'   => $totalTTC,
+                'success'       => true,
+                'id'            => $venteId,
+                'numero'        => $numero,
+                'total'         => $totalTTC,
+                'points_gagnes' => $pointsGagnes,
             ]);
         } catch (Exception $e) {
             $this->pdo->rollBack();
