@@ -150,6 +150,27 @@ export const creerClient = (data) =>
     body: JSON.stringify(data),
   });
 
+// ─── FOURNISSEURS ────────────────────────────────────────────
+export const getFournisseurs = () =>
+  request('/fournisseurs', { headers: headers() });
+
+export const creerFournisseur = (data) =>
+  request('/fournisseurs', {
+    method: 'POST', headers: headers(),
+    body: JSON.stringify(data),
+  });
+
+export const modifierFournisseur = (id, data) =>
+  request(`/fournisseurs/${id}`, {
+    method: 'PUT', headers: headers(),
+    body: JSON.stringify(data),
+  });
+
+export const basculerFournisseur = (id) =>
+  request(`/fournisseurs/${id}/actif`, {
+    method: 'PATCH', headers: headers(),
+  });
+
 // ─── DASHBOARD ───────────────────────────────────────────────
 export const getDashboardStats = () =>
   request('/dashboard/stats', { headers: headers() });
