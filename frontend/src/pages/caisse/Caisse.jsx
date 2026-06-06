@@ -6,9 +6,10 @@ import {
   Search, Plus, Minus, Trash2, ShoppingCart,
   CreditCard, Banknote, X, CheckCircle, Printer, ScanLine,
 } from 'lucide-react';
-import { getProduits, getProduitParBarre, creerVente } from '../../config/api';
+import { getProduits, getProduitParBarre, creerVente, getAccessoires } from '../../config/api';
 import BarcodeScanner from '../../components/ui/BarcodeScanner';
 import ClientZone from './ClientZone';
+import AccessoiresPopup from './AccessoiresPopup';
 import { useAuth } from '../../context/AuthContext';
 import Logo from '../../components/ui/Logo';
 
@@ -293,6 +294,7 @@ export default function Caisse() {
   const [recu, setRecu]               = useState(null);
   const [scannerOuvert, setScannerOuvert] = useState(false);
   const [client, setClient]           = useState(null);  // client fidélité sélectionné
+  const [accessoires, setAccessoires] = useState(null);  // { produitNom, liste } | null
   const rechercheRef = useRef(null);
 
   useEffect(() => {
@@ -334,7 +336,8 @@ export default function Caisse() {
   };
 
   // ── Gestion du panier ─────────────────────────────────────
-  const ajouterAuPanier = (produit) => {
+  // suggererAccessoires : true pour un produit principal, false pour un accessoire
+  const ajouterAuPanier = (produit, suggererAccessoires = true) => {
     setPanier(prev => {
       const existe = prev.find(l => l.produit.id === produit.id);
       if (existe) {
@@ -346,6 +349,21 @@ export default function Caisse() {
       }
       return [...prev, { produit, quantite: 1 }];
     });
+
+    // Proposer les accessoires (sauf pendant le scan continu pour ne pas gêner)
+    if (suggererAccessoires && !scannerOuvert) {
+      getAccessoires(produit.id).then(res => {
+        if (res.success && res.data.length > 0) {
+          setAccessoires({ produitNom: produit.nom, liste: res.data });
+        }
+      });
+    }
+  };
+
+  // Ajouter un accessoire depuis la pop-up (avec son prix remisé)
+  const ajouterAccessoire = (acc, prixFinal) => {
+    ajouterAuPanier({ ...acc, prix_vente: prixFinal }, false);
+    toast.success(`${acc.nom} ajouté`, { duration: 1200 });
   };
 
   const modifierQuantite = (id, delta) => {
@@ -633,6 +651,14 @@ export default function Caisse() {
         <BarcodeScanner
           onDetecte={onCodeScanne}
           onFermer={() => setScannerOuvert(false)}
+        />
+      )}
+      {accessoires && (
+        <AccessoiresPopup
+          produitNom={accessoires.produitNom}
+          accessoires={accessoires.liste}
+          onAjouter={ajouterAccessoire}
+          onFermer={() => setAccessoires(null)}
         />
       )}
     </div>

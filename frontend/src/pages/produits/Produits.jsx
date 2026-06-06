@@ -2,9 +2,10 @@
 import { useState, useEffect, useRef } from 'react';
 import { useForm } from 'react-hook-form';
 import toast from 'react-hot-toast';
-import { Plus, Pencil, Search, ImagePlus, X, Archive } from 'lucide-react';
+import { Plus, Pencil, Search, ImagePlus, X, Archive, Link2 } from 'lucide-react';
 import { getProduits, creerProduit, modifierProduit } from '../../config/api';
 import StockBadge from '../../components/ui/StockBadge';
+import AccessoiresModal from './AccessoiresModal';
 
 // ── Placeholder image ─────────────────────────────────────────
 function ImgProduit({ src, nom, size = 10 }) {
@@ -217,6 +218,7 @@ export default function Produits() {
   const [filtreCategorie, setFiltreCategorie] = useState('');
   const [filtreStatut, setFiltreStatut]       = useState('');
   const [modal, setModal]           = useState(null);
+  const [modalAccessoires, setModalAccessoires] = useState(null); // produit dont on gère les accessoires
 
   const charger = async () => {
     setChargement(true);
@@ -314,11 +316,16 @@ export default function Produits() {
                     <StockBadge statut={p.statut_stock || 'normal'} />
                   </td>
                   <td className='px-4 py-3'>
-                    <div className='flex gap-2'>
+                    <div className='flex gap-1'>
                       <button onClick={() => setModal(p)}
                         className='p-1.5 text-[#2196F3] hover:bg-blue-50 rounded-lg transition-colors'
                         title='Modifier'>
                         <Pencil size={15} />
+                      </button>
+                      <button onClick={() => setModalAccessoires(p)}
+                        className='p-1.5 text-[#FF6B35] hover:bg-orange-50 rounded-lg transition-colors'
+                        title='Gérer les accessoires'>
+                        <Link2 size={15} />
                       </button>
                     </div>
                   </td>
@@ -343,6 +350,14 @@ export default function Produits() {
           produit={modal === 'ajout' ? null : modal}
           onFermer={() => setModal(null)}
           onSuccess={() => { setModal(null); charger(); }}
+        />
+      )}
+
+      {modalAccessoires && (
+        <AccessoiresModal
+          produit={modalAccessoires}
+          tousLesProduits={produits}
+          onFermer={() => setModalAccessoires(null)}
         />
       )}
     </div>

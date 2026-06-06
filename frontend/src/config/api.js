@@ -73,6 +73,21 @@ export const modifierProduit = (id, data, imageFile = null) =>
     body: toFormData({ ...data, _method: 'PUT' }, imageFile),
   }).then(r => r.json()).catch(() => ({ success: false, message: 'Erreur réseau' }));
 
+// ─── ACCESSOIRES / PRODUITS LIÉS ─────────────────────────────
+export const getAccessoires = (produitId) =>
+  request(`/produits/${produitId}/accessoires`, { headers: headers() });
+
+export const lierAccessoire = (produitId, accessoireId, remisePack = 0) =>
+  request(`/produits/${produitId}/accessoires`, {
+    method: 'POST', headers: headers(),
+    body: JSON.stringify({ accessoire_id: accessoireId, remise_pack: remisePack }),
+  });
+
+export const delierAccessoire = (produitId, accessoireId) =>
+  request(`/produits/${produitId}/accessoires/${accessoireId}`, {
+    method: 'DELETE', headers: headers(),
+  });
+
 // ─── STOCKS ──────────────────────────────────────────────────
 export const getStocks = () =>
   request('/stocks', { headers: headers() });
