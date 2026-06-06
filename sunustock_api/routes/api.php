@@ -78,8 +78,11 @@ if ($base === 'alertes') {
 // ── VENTES ───────────────────────────────────────────────────
 if ($base === 'ventes') {
     $c = new VenteController($pdo);
-    if ($method === 'POST' && !$sub)                                   { $c->creer();    exit; }
-    if ($method === 'GET'  && is_numeric($sub) && $subsub === 'recu')  { $c->recu($sub); exit; }
+    if ($method === 'POST' && !$sub)                                     { $c->creer();        exit; }
+    if ($method === 'GET'  && !$sub)                                     { $c->lister();       exit; }
+    if ($method === 'GET'  && is_numeric($sub) && $subsub === 'recu')    { $c->recu($sub);     exit; }
+    if ($method === 'GET'  && is_numeric($sub) && !$subsub)              { $c->details($sub);  exit; }
+    if ($method === 'POST' && is_numeric($sub) && $subsub === 'annuler') { $c->annuler($sub);  exit; }
 }
 
 // ── DASHBOARD ────────────────────────────────────────────────

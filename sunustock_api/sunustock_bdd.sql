@@ -134,6 +134,16 @@ CREATE TABLE lignes_ventes (
     FOREIGN KEY (produit_id) REFERENCES produits(id) ON DELETE RESTRICT
 );
 
+-- Table de liaison produit ↔ accessoire (module Accessoires/Produits liés)
+CREATE TABLE accessoires_produits (
+    produit_id    INT NOT NULL,
+    accessoire_id INT NOT NULL,
+    remise_pack   DECIMAL(5,2) DEFAULT 0,    -- remise (%) appliquée au pack
+    PRIMARY KEY (produit_id, accessoire_id),
+    FOREIGN KEY (produit_id)    REFERENCES produits(id) ON DELETE CASCADE,
+    FOREIGN KEY (accessoire_id) REFERENCES produits(id) ON DELETE CASCADE
+);
+
 -- ============================================================
 -- DONNÉES ENRICHIES
 -- ============================================================
@@ -285,3 +295,15 @@ INSERT INTO lignes_ventes (vente_id,produit_id,nom_produit,quantite,prix_unitair
   (7,30,'Coca-Cola 1.5L',                 3, 1400,18, 4200),
   (8,3, 'Huile végétale Lesieur 5L',      1, 4000,18, 4000),
   (8,12,'Sel iodé Selaf 1kg',             3,  250,18,  750);
+
+-- ACCESSOIRES / PRODUITS LIÉS (produit principal → accessoire suggéré, remise %)
+INSERT INTO accessoires_produits (produit_id, accessoire_id, remise_pack) VALUES
+  (31, 11, 5),   -- Café Nescafé Gold  → Lait Nido (-5%)
+  (31, 13, 0),   -- Café Nescafé Gold  → Biscuits Youki
+  (1,  3, 10),   -- Riz Tilda 25kg     → Huile Lesieur (-10%)
+  (1,  7, 0),    -- Riz Tilda 25kg     → Tomate concentrée
+  (22, 23, 5),   -- Chargeur USB-C     → Écouteurs Bluetooth (-5%)
+  (22, 24, 0),   -- Chargeur USB-C     → Multiprise
+  (17, 15, 0),   -- Shampoing H&S      → Savon Palmolive
+  (25, 27, 15),  -- T-shirt blanc      → Chaussettes (-15%)
+  (30, 13, 0);   -- Coca-Cola          → Biscuits Youki

@@ -19,14 +19,29 @@ class VenteController {
 
         $this->pdo->beginTransaction();
         try {
-            // Calculer les totaux
-            $totalHT = $totalTVA = 0;
+            // Calculer le total HT brut (somme des lignes)
+            $totalHTBrut = 0;
             foreach ($lignes as $l) {
-                $ht        = $l['prix_vente'] * $l['quantite'];
-                $tva       = $ht * (($l['tva'] ?? 18) / 100);
-                $totalHT  += $ht;
-                $totalTVA += $tva;
+                $totalHTBrut += $l['prix_vente'] * $l['quantite'];
             }
+
+            // Remise fidélité automatique selon le niveau du client
+            $tauxRemise = 0;
+            if ($clientId) {
+                $sc = $this->pdo->prepare('SELECT statut FROM clients WHERE id = ?');
+                $sc->execute([$clientId]);
+                $statut = $sc->fetchColumn();
+                $tauxRemise = match ($statut) {
+                    'or'  => 10,
+                    'vip' => 5,
+                    default => 0,
+                };
+            }
+            $remiseClient = round($totalHTBrut * $tauxRemise / 100);
+
+            // La TVA se calcule sur le HT APRÈS remise (comptabilité correcte)
+            $totalHT  = $totalHTBrut - $remiseClient;
+            $totalTVA = round($totalHT * 18 / 100);
             $totalTTC = $totalHT + $totalTVA;
             // Numéro unique : date + 8 caractères aléatoires (anti-collision)
             $numero   = 'VNT-' . date('Ymd') . '-' . strtoupper(bin2hex(random_bytes(4)));
@@ -129,5 +144,111 @@ class VenteController {
             'success' => true,
             'data'    => ['vente' => $vente, 'lignes' => $sl->fetchAll()],
         ]);
+    }
+
+    // Liste de toutes les ventes (historique) — manager/admin
+    public function lister(): void {
+        $user = auth();
+        autoriser(['manager', 'admin'], $user);
+        $rows = $this->pdo->query(
+            'SELECT v.id, v.numero, v.total_ttc, v.mode_paiement,
+                    v.statut, v.created_at,
+                    CONCAT(u.prenom, " ", u.nom) AS caissier,
+                    c.nom AS client,
+                    (SELECT COUNT(*) FROM lignes_ventes lv WHERE lv.vente_id = v.id) AS nb_articles
+             FROM ventes v
+             JOIN utilisateurs u ON u.id = v.utilisateur_id
+             LEFT JOIN clients  c ON c.id = v.client_id
+             ORDER BY v.created_at DESC
+             LIMIT 300'
+        )->fetchAll();
+        echo json_encode(['success' => true, 'data' => $rows]);
+    }
+
+    // Détails d'une vente (en-tête + lignes) — manager/admin
+    public function details(int $id): void {
+        $user = auth();
+        autoriser(['manager', 'admin'], $user);
+        $sv = $this->pdo->prepare(
+            'SELECT v.*, CONCAT(u.prenom," ",u.nom) AS caissier, c.nom AS client_nom
+             FROM ventes v
+             JOIN utilisateurs u ON u.id = v.utilisateur_id
+             LEFT JOIN clients  c ON c.id = v.client_id
+             WHERE v.id = ?'
+        );
+        $sv->execute([$id]);
+        $vente = $sv->fetch();
+        if (!$vente) {
+            http_response_code(404);
+            echo json_encode(['success' => false, 'message' => 'Vente introuvable']);
+            return;
+        }
+        $sl = $this->pdo->prepare('SELECT * FROM lignes_ventes WHERE vente_id = ?');
+        $sl->execute([$id]);
+        echo json_encode([
+            'success' => true,
+            'data'    => ['vente' => $vente, 'lignes' => $sl->fetchAll()],
+        ]);
+    }
+
+    // Annuler une vente : restaure le stock + trace un retour — manager/admin
+    public function annuler(int $id): void {
+        $user = auth();
+        autoriser(['manager', 'admin'], $user);
+
+        $this->pdo->beginTransaction();
+        try {
+            // Récupérer la vente (verrou)
+            $sv = $this->pdo->prepare('SELECT * FROM ventes WHERE id = ? FOR UPDATE');
+            $sv->execute([$id]);
+            $vente = $sv->fetch();
+            if (!$vente)                          throw new Exception('Vente introuvable');
+            if ($vente['statut'] === 'annulee')   throw new Exception('Vente déjà annulée');
+
+            // Restaurer le stock pour chaque ligne + tracer un mouvement "retour"
+            $sl = $this->pdo->prepare('SELECT * FROM lignes_ventes WHERE vente_id = ?');
+            $sl->execute([$id]);
+            foreach ($sl->fetchAll() as $ligne) {
+                $pid = $ligne['produit_id'];
+                $qte = $ligne['quantite'];
+
+                // Lire le stock actuel
+                $sq = $this->pdo->prepare('SELECT quantite FROM stocks WHERE produit_id = ? FOR UPDATE');
+                $sq->execute([$pid]);
+                $avant = (int)$sq->fetchColumn();
+                $apres = $avant + $qte;
+
+                $this->pdo->prepare('UPDATE stocks SET quantite = ? WHERE produit_id = ?')
+                          ->execute([$apres, $pid]);
+
+                $this->pdo->prepare(
+                    'INSERT INTO mouvements_stock
+                     (produit_id, type_mouvement, quantite, quantite_avant, quantite_apres, motif, utilisateur_id)
+                     VALUES (?, "retour", ?, ?, ?, ?, ?)'
+                )->execute([$pid, $qte, $avant, $apres,
+                            'Annulation vente ' . $vente['numero'], $user['id']]);
+            }
+
+            // Retirer les points fidélité gagnés (si client)
+            if ($vente['client_id']) {
+                $points = (int)floor($vente['total_ttc'] / 1000);
+                if ($points > 0) {
+                    $this->pdo->prepare(
+                        'UPDATE clients SET points = GREATEST(0, points - ?) WHERE id = ?'
+                    )->execute([$points, $vente['client_id']]);
+                }
+            }
+
+            // Marquer la vente comme annulée
+            $this->pdo->prepare('UPDATE ventes SET statut = "annulee" WHERE id = ?')
+                      ->execute([$id]);
+
+            $this->pdo->commit();
+            echo json_encode(['success' => true, 'message' => 'Vente annulée, stock restauré']);
+        } catch (Exception $e) {
+            $this->pdo->rollBack();
+            http_response_code(500);
+            echo json_encode(['success' => false, 'message' => $e->getMessage()]);
+        }
     }
 }
