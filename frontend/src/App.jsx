@@ -12,13 +12,14 @@ const Stocks     = lazy(() => import('./pages/stocks/Stocks'));
 const Alertes    = lazy(() => import('./pages/alertes/Alertes'));
 const Caisse     = lazy(() => import('./pages/caisse/Caisse'));
 const Mouvements = lazy(() => import('./pages/stocks/Mouvements'));
+const Ventes     = lazy(() => import('./pages/ventes/Ventes'));
 const Layout     = lazy(() => import('./components/layout/Layout'));
 
 // Permissions par rôle
 const PERMISSIONS = {
   caissier: ['/caisse'],
-  manager:  ['/dashboard', '/produits', '/stocks', '/mouvements', '/alertes', '/caisse'],
-  admin:    ['/dashboard', '/produits', '/stocks', '/mouvements', '/alertes', '/caisse'],
+  manager:  ['/dashboard', '/produits', '/stocks', '/mouvements', '/alertes', '/caisse', '/ventes'],
+  admin:    ['/dashboard', '/produits', '/stocks', '/mouvements', '/alertes', '/caisse', '/ventes'],
 };
 
 // Page d'accès refusé
@@ -87,6 +88,7 @@ export default function App() {
               <Route path='mouvements' element={<RoutePrivee page='/mouvements'><Mouvements /></RoutePrivee>} />
               <Route path='alertes'    element={<RoutePrivee page='/alertes'><Alertes /></RoutePrivee>} />
               <Route path='caisse'     element={<RoutePrivee page='/caisse'><Caisse /></RoutePrivee>} />
+              <Route path='ventes'     element={<RoutePrivee page='/ventes'><Ventes /></RoutePrivee>} />
             </Route>
           </Routes>
         </Suspense>

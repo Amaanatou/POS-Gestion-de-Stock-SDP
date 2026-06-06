@@ -4,8 +4,9 @@ import { useForm } from 'react-hook-form';
 import toast from 'react-hot-toast';
 import {
   Search, Plus, Minus, Trash2, ShoppingCart,
-  CreditCard, Banknote, X, CheckCircle, Printer, ScanLine,
+  CreditCard, Banknote, X, CheckCircle, Printer, ScanLine, FileText,
 } from 'lucide-react';
+import { genererFacturePDF } from '../../utils/facturePDF';
 import { getProduits, getProduitParBarre, creerVente, getAccessoires } from '../../config/api';
 import BarcodeScanner from '../../components/ui/BarcodeScanner';
 import ClientZone from './ClientZone';
@@ -123,6 +124,9 @@ function Recu({ vente, onFermer }) {
 
   // Méthode B : prix HT, TVA ajoutée par-dessus
   const TAUX_TVA   = 18;
+  const totalHTBrut  = vente.totalHTBrut ?? vente.totalHT;
+  const remiseClient = vente.remiseClient ?? 0;
+  const tauxRemise   = vente.tauxRemise ?? 0;
   const totalHT    = vente.totalHT;
   const montantTVA = vente.totalTVA;
   const totalTTC   = vente.totalTTC;
@@ -196,8 +200,14 @@ function Recu({ vente, onFermer }) {
           <div className='border-t border-dashed pt-2 space-y-0.5 text-xs'>
             <div className='flex justify-between text-gray-500'>
               <span>Total HT</span>
-              <span>{fmt(totalHT)} FCFA</span>
+              <span>{fmt(totalHTBrut)} FCFA</span>
             </div>
+            {remiseClient > 0 && (
+              <div className='flex justify-between text-gray-700 font-medium'>
+                <span>Remise fidélité (-{tauxRemise}%)</span>
+                <span>-{fmt(remiseClient)} FCFA</span>
+              </div>
+            )}
             <div className='flex justify-between text-gray-500'>
               <span>TVA ({TAUX_TVA}%)</span>
               <span>{fmt(montantTVA)} FCFA</span>
@@ -259,18 +269,28 @@ function Recu({ vente, onFermer }) {
         </div>
 
         {/* Boutons (cachés à l'impression) */}
-        <div className='p-4 flex gap-3 border-t print:hidden'>
-          <button
-            onClick={() => window.print()}
-            className='flex-1 flex items-center justify-center gap-2 border
-                       border-gray-300 text-gray-700 py-2.5 rounded-lg
-                       hover:bg-gray-50 transition-colors text-sm font-medium'
-          >
-            <Printer size={16} /> Imprimer
-          </button>
+        <div className='p-4 border-t print:hidden space-y-2'>
+          <div className='flex gap-2'>
+            <button
+              onClick={() => window.print()}
+              className='flex-1 flex items-center justify-center gap-2 border
+                         border-gray-300 text-gray-700 py-2.5 rounded-lg
+                         hover:bg-gray-50 transition-colors text-sm font-medium'
+            >
+              <Printer size={16} /> Reçu
+            </button>
+            <button
+              onClick={() => genererFacturePDF(vente)}
+              className='flex-1 flex items-center justify-center gap-2 border
+                         border-[#FF6B35] text-[#FF6B35] py-2.5 rounded-lg
+                         hover:bg-orange-50 transition-colors text-sm font-medium'
+            >
+              <FileText size={16} /> Facture PDF
+            </button>
+          </div>
           <button
             onClick={onFermer}
-            className='flex-1 bg-[#1E3A5F] text-white py-2.5 rounded-lg
+            className='w-full bg-[#1E3A5F] text-white py-2.5 rounded-lg
                        hover:bg-blue-900 transition-colors text-sm font-bold'
           >
             Nouvelle vente
@@ -381,12 +401,18 @@ export default function Caisse() {
   const viderPanier = () => setPanier([]);
 
   // Méthode B : prix affichés HT, TVA ajoutée au paiement
-  const TAUX_TVA  = 18;
-  const totalHT   = panier.reduce(
+  const TAUX_TVA   = 18;
+  // Remise fidélité automatique selon le niveau du client
+  const REMISES_NIVEAU = { standard: 0, vip: 5, or: 10 };
+  const tauxRemise = REMISES_NIVEAU[client?.statut] ?? 0;
+
+  const totalHTBrut  = panier.reduce(
     (sum, l) => sum + (l.produit.prix_vente || 0) * l.quantite, 0
   );
-  const totalTVA  = Math.round(totalHT * TAUX_TVA / 100);
-  const totalTTC  = totalHT + totalTVA;
+  const remiseClient = Math.round(totalHTBrut * tauxRemise / 100);
+  const totalHT      = totalHTBrut - remiseClient;       // HT après remise
+  const totalTVA     = Math.round(totalHT * TAUX_TVA / 100);
+  const totalTTC     = totalHT + totalTVA;
 
   // ── Finaliser la vente ────────────────────────────────────
   const confirmerVente = async (modePaiement, montantRecu) => {
@@ -403,6 +429,9 @@ export default function Caisse() {
     if (res.success) {
       setRecu({
         lignes,
+        totalHTBrut,
+        remiseClient,
+        tauxRemise,
         totalHT,
         totalTVA,
         totalTTC,
@@ -411,7 +440,7 @@ export default function Caisse() {
         monnaie:   modePaiement === 'especes' ? Math.max(0, montantRecu - totalTTC) : 0,
         numero:    res.numero || '—',
         caissier:  `${utilisateur?.prenom || ''} ${utilisateur?.nom || ''}`.trim(),
-        client:    client ? { nom: client.nom, points_gagnes: res.points_gagnes || 0 } : null,
+        client:    client ? { nom: client.nom, statut: client.statut, points_gagnes: res.points_gagnes || 0 } : null,
         date:      new Date(),
       });
       viderPanier();
@@ -609,8 +638,15 @@ export default function Caisse() {
         <div className='p-4 border-t space-y-2'>
           <div className='flex justify-between text-sm text-gray-500'>
             <span>Sous-total HT</span>
-            <span>{totalHT.toLocaleString('fr-FR')} FCFA</span>
+            <span>{totalHTBrut.toLocaleString('fr-FR')} FCFA</span>
           </div>
+          {/* Remise fidélité (seulement si client VIP/Or) */}
+          {tauxRemise > 0 && (
+            <div className='flex justify-between text-sm text-[#FF6B35] font-medium'>
+              <span>Remise {client.statut === 'or' ? 'Or' : 'VIP'} (-{tauxRemise}%)</span>
+              <span>-{remiseClient.toLocaleString('fr-FR')} FCFA</span>
+            </div>
+          )}
           <div className='flex justify-between text-sm text-gray-500'>
             <span>TVA ({TAUX_TVA}%)</span>
             <span>{totalTVA.toLocaleString('fr-FR')} FCFA</span>
