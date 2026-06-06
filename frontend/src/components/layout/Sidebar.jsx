@@ -7,17 +7,22 @@ import {
 import { useAuth } from '../../context/AuthContext';
 import Logo from '../ui/Logo';
 
-const nav = [
-  { to: '/dashboard',  label: 'Tableau de bord', icon: LayoutDashboard },
-  { to: '/produits',   label: 'Produits',         icon: Package },
-  { to: '/stocks',     label: 'Stocks',           icon: BarChart3 },
-  { to: '/mouvements', label: 'Mouvements',       icon: ArrowLeftRight },
-  { to: '/alertes',    label: 'Alertes',          icon: Bell },
-  { to: '/caisse',     label: 'Caisse POS',       icon: ShoppingCart },
+// Chaque menu indique quels rôles peuvent le voir
+const TOUS_LES_MENUS = [
+  { to: '/dashboard',  label: 'Tableau de bord', icon: LayoutDashboard, roles: ['admin','manager'] },
+  { to: '/produits',   label: 'Produits',         icon: Package,         roles: ['admin','manager'] },
+  { to: '/stocks',     label: 'Stocks',           icon: BarChart3,       roles: ['admin','manager'] },
+  { to: '/mouvements', label: 'Mouvements',       icon: ArrowLeftRight,  roles: ['admin','manager'] },
+  { to: '/alertes',    label: 'Alertes',          icon: Bell,            roles: ['admin','manager'] },
+  { to: '/caisse',     label: 'Caisse POS',       icon: ShoppingCart,    roles: ['admin','manager','caissier'] },
 ];
 
 export default function Sidebar() {
   const { utilisateur, deconnecter } = useAuth();
+
+  // Filtrer les menus selon le rôle de l'utilisateur connecté
+  const nav = TOUS_LES_MENUS.filter(m => m.roles.includes(utilisateur?.role));
+
   return (
     <aside className='w-64 bg-[#1E3A5F] text-white flex flex-col shadow-xl'>
       <div className='p-6 border-b border-white/10'>
