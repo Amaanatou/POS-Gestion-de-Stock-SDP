@@ -6,6 +6,7 @@ require_once __DIR__ . '/../controllers/AlerteController.php';
 require_once __DIR__ . '/../controllers/VenteController.php';
 require_once __DIR__ . '/../controllers/DashboardController.php';
 require_once __DIR__ . '/../controllers/ClientController.php';
+require_once __DIR__ . '/../controllers/FournisseurController.php';
 
 $method   = $_SERVER['REQUEST_METHOD'];
 $uri      = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
@@ -97,6 +98,16 @@ if ($base === 'clients') {
     if ($method === 'GET'  && !$sub)                 { $c->lister();           exit; }
     if ($method === 'GET'  && $sub === 'recherche')  { $c->rechercher($subsub); exit; }
     if ($method === 'POST' && !$sub)                 { $c->creer();            exit; }
+}
+
+// ── FOURNISSEURS ─────────────────────────────────────────────
+if ($base === 'fournisseurs') {
+    $c = new FournisseurController($pdo);
+    if ($method === 'GET'    && !$sub)            { $c->lister();           exit; }
+    if ($method === 'POST'   && !$sub)            { $c->creer();            exit; }
+    if ($method === 'PUT'    && is_numeric($sub)) { $c->modifier($sub);     exit; }
+    if ($method === 'PATCH'  && is_numeric($sub)
+        && $subsub === 'actif')                   { $c->basculerActif($sub); exit; }
 }
 
 // ── CATÉGORIES ───────────────────────────────────────────────
