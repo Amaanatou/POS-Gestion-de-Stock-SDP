@@ -2,7 +2,7 @@
 import { NavLink } from 'react-router-dom';
 import {
   LayoutDashboard, Package, BarChart3,
-  Bell, ShoppingCart, ArrowLeftRight, LogOut, Receipt
+  Bell, ShoppingCart, ArrowLeftRight, LogOut, Receipt, Truck
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import Logo from '../ui/Logo';
@@ -16,6 +16,7 @@ const TOUS_LES_MENUS = [
   { to: '/alertes',    label: 'Alertes',          icon: Bell,            roles: ['admin','manager'] },
   { to: '/caisse',     label: 'Caisse POS',       icon: ShoppingCart,    roles: ['admin','manager','caissier'] },
   { to: '/ventes',     label: 'Historique ventes',icon: Receipt,         roles: ['admin','manager'] },
+  { to: '/fournisseurs',label:'Fournisseurs',     icon: Truck,           roles: ['admin','manager'] },
 ];
 
 export default function Sidebar() {
