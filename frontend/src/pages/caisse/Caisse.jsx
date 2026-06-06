@@ -4,9 +4,13 @@ import { useForm } from 'react-hook-form';
 import toast from 'react-hot-toast';
 import {
   Search, Plus, Minus, Trash2, ShoppingCart,
-  CreditCard, Banknote, X, CheckCircle, Printer,
+  CreditCard, Banknote, X, CheckCircle, Printer, ScanLine,
 } from 'lucide-react';
 import { getProduits, getProduitParBarre, creerVente } from '../../config/api';
+import BarcodeScanner from '../../components/ui/BarcodeScanner';
+import ClientZone from './ClientZone';
+import { useAuth } from '../../context/AuthContext';
+import Logo from '../../components/ui/Logo';
 
 // ─────────────────────────────────────────────────────────────
 //  Modal Paiement
@@ -111,60 +115,150 @@ function ModalPaiement({ total, onFermer, onConfirmer }) {
 //  Reçu (après vente)
 // ─────────────────────────────────────────────────────────────
 function Recu({ vente, onFermer }) {
-  const date = new Date().toLocaleString('fr-FR', {
+  const dateStr = (vente.date || new Date()).toLocaleString('fr-FR', {
     day: '2-digit', month: '2-digit', year: 'numeric',
     hour: '2-digit', minute: '2-digit',
   });
 
-  return (
-    <div className='fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4'>
-      <div className='bg-white rounded-2xl shadow-2xl w-full max-w-sm'>
+  // Méthode B : prix HT, TVA ajoutée par-dessus
+  const TAUX_TVA   = 18;
+  const totalHT    = vente.totalHT;
+  const montantTVA = vente.totalTVA;
+  const totalTTC   = vente.totalTTC;
 
-        <div className='p-5 border-b flex items-center justify-between'>
+  const modeLabel = {
+    especes:      'Espèces',
+    carte:        'Carte bancaire',
+    mobile_money: 'Mobile Money',
+  }[vente.modePaiement] || vente.modePaiement;
+
+  const fmt = (n) => Number(n).toLocaleString('fr-FR');
+  const nbArticles = vente.lignes.reduce((s, l) => s + l.quantite, 0);
+
+  return (
+    <div className='fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4 print:bg-white print:p-0'>
+      <div className='bg-white rounded-2xl shadow-2xl w-full max-w-sm max-h-[92vh] overflow-y-auto print:shadow-none print:max-h-none print:rounded-none'>
+
+        {/* En-tête (caché à l'impression) */}
+        <div className='p-4 border-b flex items-center justify-between print:hidden'>
           <h2 className='text-lg font-bold text-gray-800'>Vente enregistrée ✅</h2>
           <button onClick={onFermer} className='text-gray-400 hover:text-gray-600'>
             <X size={20} />
           </button>
         </div>
 
-        {/* Corps du reçu */}
-        <div className='p-5 font-mono text-sm'>
-          <div className='text-center mb-4'>
-            <p className='font-bold text-lg text-[#1E3A5F]'>SunuStock</p>
-            <p className='text-gray-500 text-xs'>Gestion de Stock PME</p>
-            <p className='text-gray-400 text-xs mt-1'>{date}</p>
+        {/* ════ TICKET IMPRIMABLE ════ */}
+        <div id='recu-imprimable' className='p-5 font-mono text-sm text-gray-800'>
+
+          {/* Logo + en-tête entreprise */}
+          <div className='text-center mb-3'>
+            <div className='flex justify-center mb-2'>
+              <Logo size={34} variant='dark' />
+            </div>
+            <p className='text-xs text-gray-500'>Gestion de Stock PME</p>
+            <p className='text-xs text-gray-500'>Dakar, Sénégal — Tél : 33 800 00 00</p>
+            <p className='text-[10px] text-gray-400'>NINEA : 0000000 2A2 — RC : SN-DKR-2026</p>
           </div>
 
-          <div className='border-t border-dashed pt-3 space-y-1 mb-3'>
+          {/* Infos transaction */}
+          <div className='border-t border-dashed pt-2 mb-2 text-xs space-y-0.5'>
+            <div className='flex justify-between'>
+              <span className='text-gray-500'>Reçu N°</span>
+              <span className='font-bold'>{vente.numero}</span>
+            </div>
+            <div className='flex justify-between'>
+              <span className='text-gray-500'>Date</span>
+              <span>{dateStr}</span>
+            </div>
+            <div className='flex justify-between'>
+              <span className='text-gray-500'>Caissier</span>
+              <span>{vente.caissier || '—'}</span>
+            </div>
+          </div>
+
+          {/* Détail des articles */}
+          <div className='border-t border-dashed pt-2 space-y-1.5 mb-2'>
             {vente.lignes.map((l, i) => (
-              <div key={i} className='flex justify-between'>
-                <span className='text-gray-700 truncate flex-1'>{l.nom}</span>
-                <span className='text-gray-500 mx-2'>x{l.quantite}</span>
-                <span className='font-medium'>
-                  {(l.prix_vente * l.quantite).toLocaleString('fr-FR')}
-                </span>
+              <div key={i}>
+                <p className='text-gray-800 leading-tight'>{l.nom}</p>
+                <div className='flex justify-between text-xs text-gray-500'>
+                  <span>{l.quantite} x {fmt(l.prix_vente)}</span>
+                  <span className='font-medium text-gray-700'>
+                    {fmt(l.prix_vente * l.quantite)}
+                  </span>
+                </div>
               </div>
             ))}
           </div>
 
-          <div className='border-t border-dashed pt-3'>
-            <div className='flex justify-between font-bold text-base'>
-              <span>TOTAL</span>
-              <span>{vente.total.toLocaleString('fr-FR')} FCFA</span>
+          {/* Totaux */}
+          <div className='border-t border-dashed pt-2 space-y-0.5 text-xs'>
+            <div className='flex justify-between text-gray-500'>
+              <span>Total HT</span>
+              <span>{fmt(totalHT)} FCFA</span>
             </div>
-            {vente.monnaie > 0 && (
-              <div className='flex justify-between text-green-600 text-xs mt-1'>
-                <span>Monnaie rendue</span>
-                <span>{vente.monnaie.toLocaleString('fr-FR')} FCFA</span>
-              </div>
+            <div className='flex justify-between text-gray-500'>
+              <span>TVA ({TAUX_TVA}%)</span>
+              <span>{fmt(montantTVA)} FCFA</span>
+            </div>
+            <div className='flex justify-between font-bold text-base text-gray-900 pt-1'>
+              <span>TOTAL TTC</span>
+              <span>{fmt(totalTTC)} FCFA</span>
+            </div>
+          </div>
+
+          {/* Paiement */}
+          <div className='border-t border-dashed pt-2 mt-2 space-y-0.5 text-xs'>
+            <div className='flex justify-between'>
+              <span className='text-gray-500'>Mode de règlement</span>
+              <span className='font-medium'>{modeLabel}</span>
+            </div>
+            {vente.modePaiement === 'especes' && (
+              <>
+                <div className='flex justify-between'>
+                  <span className='text-gray-500'>Montant reçu</span>
+                  <span>{fmt(vente.montantRecu)} FCFA</span>
+                </div>
+                <div className='flex justify-between text-green-600 font-medium'>
+                  <span>Monnaie rendue</span>
+                  <span>{fmt(vente.monnaie)} FCFA</span>
+                </div>
+              </>
             )}
-            <p className='text-center text-gray-400 text-xs mt-3'>
-              Mode : {vente.modePaiement === 'especes' ? 'Espèces' : 'Carte / Mobile Money'}
+          </div>
+
+          {/* Client fidélité */}
+          {vente.client && (
+            <div className='border-t border-dashed pt-2 mt-2 text-xs'>
+              <div className='flex justify-between'>
+                <span className='text-gray-500'>Client</span>
+                <span className='font-medium'>{vente.client.nom}</span>
+              </div>
+              {vente.client.points_gagnes > 0 && (
+                <div className='flex justify-between text-[#FF6B35] font-medium'>
+                  <span>Points gagnés</span>
+                  <span>+{vente.client.points_gagnes}</span>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Pied de ticket — marketing */}
+          <div className='border-t border-dashed pt-3 mt-2 text-center'>
+            <p className='text-xs font-medium text-gray-700'>
+              {nbArticles} article{nbArticles > 1 ? 's' : ''} — Merci de votre visite !
+            </p>
+            <p className='text-[10px] text-gray-400 mt-1'>
+              Échange sous 7 jours sur présentation de ce reçu.
+            </p>
+            <p className='text-[10px] text-gray-400 mt-2'>
+              SunuStock — Le confort par le digital
             </p>
           </div>
         </div>
 
-        <div className='p-4 flex gap-3 border-t'>
+        {/* Boutons (cachés à l'impression) */}
+        <div className='p-4 flex gap-3 border-t print:hidden'>
           <button
             onClick={() => window.print()}
             className='flex-1 flex items-center justify-center gap-2 border
@@ -190,12 +284,15 @@ function Recu({ vente, onFermer }) {
 //  Page Caisse POS principale
 // ─────────────────────────────────────────────────────────────
 export default function Caisse() {
+  const { utilisateur } = useAuth();
   const [produits, setProduits]       = useState([]);
   const [panier, setPanier]           = useState([]);  // { produit, quantite }
   const [recherche, setRecherche]     = useState('');
   const [chargement, setChargement]   = useState(true);
   const [modalPaiement, setModalPaiement] = useState(false);
   const [recu, setRecu]               = useState(null);
+  const [scannerOuvert, setScannerOuvert] = useState(false);
+  const [client, setClient]           = useState(null);  // client fidélité sélectionné
   const rechercheRef = useRef(null);
 
   useEffect(() => {
@@ -213,6 +310,19 @@ export default function Caisse() {
     if (res.success && res.data) {
       ajouterAuPanier(res.data);
       setRecherche('');
+    } else {
+      toast.error(`Aucun produit avec le code ${code}`);
+    }
+  };
+
+  // Appelé à CHAQUE scan — la caméra reste ouverte (mode continu)
+  const onCodeScanne = async (code) => {
+    const res = await getProduitParBarre(code);
+    if (res.success && res.data) {
+      ajouterAuPanier(res.data);
+      toast.success(`${res.data.nom} ajouté`, { duration: 1500 });
+    } else {
+      toast.error(`Produit introuvable (${code})`, { duration: 1500 });
     }
   };
 
@@ -252,9 +362,13 @@ export default function Caisse() {
 
   const viderPanier = () => setPanier([]);
 
-  const total = panier.reduce(
+  // Méthode B : prix affichés HT, TVA ajoutée au paiement
+  const TAUX_TVA  = 18;
+  const totalHT   = panier.reduce(
     (sum, l) => sum + (l.produit.prix_vente || 0) * l.quantite, 0
   );
+  const totalTVA  = Math.round(totalHT * TAUX_TVA / 100);
+  const totalTTC  = totalHT + totalTVA;
 
   // ── Finaliser la vente ────────────────────────────────────
   const confirmerVente = async (modePaiement, montantRecu) => {
@@ -265,18 +379,30 @@ export default function Caisse() {
       prix_vente: l.produit.prix_vente,
     }));
 
-    const res = await creerVente(lignes, modePaiement);
+    const res = await creerVente(lignes, modePaiement, client?.id || null);
     setModalPaiement(false);
 
     if (res.success) {
       setRecu({
         lignes,
-        total,
+        totalHT,
+        totalTVA,
+        totalTTC,
         modePaiement,
-        monnaie: modePaiement === 'especes' ? Math.max(0, montantRecu - total) : 0,
+        montantRecu,
+        monnaie:   modePaiement === 'especes' ? Math.max(0, montantRecu - totalTTC) : 0,
+        numero:    res.numero || '—',
+        caissier:  `${utilisateur?.prenom || ''} ${utilisateur?.nom || ''}`.trim(),
+        client:    client ? { nom: client.nom, points_gagnes: res.points_gagnes || 0 } : null,
+        date:      new Date(),
       });
       viderPanier();
-      toast.success('Vente enregistrée !');
+      setClient(null);   // réinitialiser le client pour la prochaine vente
+      toast.success(
+        res.points_gagnes
+          ? `Vente enregistrée ! +${res.points_gagnes} points`
+          : 'Vente enregistrée !'
+      );
     } else {
       toast.error(res.message || 'Erreur lors de la vente');
     }
@@ -294,20 +420,33 @@ export default function Caisse() {
       {/* ══════════════ ZONE PRODUITS (gauche) ══════════════ */}
       <div className='flex-1 flex flex-col min-w-0'>
 
-        {/* Barre de recherche / scan */}
-        <div className='relative mb-4'>
-          <Search size={16} className='absolute left-3 top-3.5 text-gray-400' />
-          <input
-            ref={rechercheRef}
-            type='text'
-            placeholder='Chercher un produit ou scanner un code-barres...'
-            value={recherche}
-            onChange={e => setRecherche(e.target.value)}
-            onKeyDown={handleRechercheKeyDown}
-            className='w-full pl-9 pr-4 py-3 border border-gray-300 rounded-xl
-                       focus:outline-none focus:ring-2 focus:ring-[#2196F3]
-                       text-gray-800 bg-white shadow-sm'
-          />
+        {/* Barre de recherche + bouton scanner */}
+        <div className='flex gap-2 mb-4'>
+          <div className='relative flex-1'>
+            <Search size={16} className='absolute left-3 top-3.5 text-gray-400' />
+            <input
+              ref={rechercheRef}
+              type='text'
+              placeholder='Chercher un produit ou taper un code-barres...'
+              value={recherche}
+              onChange={e => setRecherche(e.target.value)}
+              onKeyDown={handleRechercheKeyDown}
+              className='w-full pl-9 pr-4 py-3 border border-gray-300 rounded-xl
+                         focus:outline-none focus:ring-2 focus:ring-[#2196F3]
+                         text-gray-800 bg-white shadow-sm'
+            />
+          </div>
+          {/* Bouton ouvrir la caméra */}
+          <button
+            onClick={() => setScannerOuvert(true)}
+            title='Scanner avec la caméra'
+            className='flex items-center gap-2 bg-[#1E3A5F] hover:bg-blue-900
+                       text-white px-4 rounded-xl shadow-sm transition-colors
+                       font-medium whitespace-nowrap'
+          >
+            <ScanLine size={20} />
+            <span className='hidden sm:inline'>Scanner</span>
+          </button>
         </div>
 
         {/* Grille produits */}
@@ -326,6 +465,12 @@ export default function Caisse() {
                            hover:shadow-md hover:border-[#2196F3] border border-transparent
                            transition-all active:scale-95'
               >
+                {/* Image — uniquement si elle existe */}
+                {p.image_url && (
+                  <img src={p.image_url} alt={p.nom}
+                    className='w-full h-20 object-cover rounded-lg mb-2'
+                    onError={e => { e.target.style.display='none'; }} />
+                )}
                 <p className='font-semibold text-gray-800 text-sm leading-tight
                               line-clamp-2 mb-1'>{p.nom}</p>
                 <p className='text-xs text-gray-400 mb-2'>{p.categorie || '—'}</p>
@@ -369,6 +514,11 @@ export default function Caisse() {
               Vider
             </button>
           )}
+        </div>
+
+        {/* Zone client fidélité */}
+        <div className='p-3 border-b'>
+          <ClientZone client={client} onClientChange={setClient} />
         </div>
 
         {/* Lignes du panier */}
@@ -437,12 +587,20 @@ export default function Caisse() {
           )}
         </div>
 
-        {/* Total + bouton payer */}
-        <div className='p-4 border-t space-y-3'>
-          <div className='flex justify-between items-center'>
-            <span className='text-gray-600 font-medium'>Total</span>
+        {/* Totaux + bouton payer */}
+        <div className='p-4 border-t space-y-2'>
+          <div className='flex justify-between text-sm text-gray-500'>
+            <span>Sous-total HT</span>
+            <span>{totalHT.toLocaleString('fr-FR')} FCFA</span>
+          </div>
+          <div className='flex justify-between text-sm text-gray-500'>
+            <span>TVA ({TAUX_TVA}%)</span>
+            <span>{totalTVA.toLocaleString('fr-FR')} FCFA</span>
+          </div>
+          <div className='flex justify-between items-center pt-1 border-t'>
+            <span className='text-gray-700 font-semibold'>Total à payer</span>
             <span className='text-xl font-bold text-[#1E3A5F]'>
-              {total.toLocaleString('fr-FR')} FCFA
+              {totalTTC.toLocaleString('fr-FR')} FCFA
             </span>
           </div>
           <button
@@ -450,7 +608,7 @@ export default function Caisse() {
             onClick={() => setModalPaiement(true)}
             className='w-full bg-[#FF6B35] hover:bg-orange-600 disabled:opacity-40
                        text-white font-bold py-3.5 rounded-xl transition-colors
-                       flex items-center justify-center gap-2 text-base'
+                       flex items-center justify-center gap-2 text-base mt-1'
           >
             <CreditCard size={20} /> Encaisser
           </button>
@@ -460,7 +618,7 @@ export default function Caisse() {
       {/* ── Modals ── */}
       {modalPaiement && (
         <ModalPaiement
-          total={total}
+          total={totalTTC}
           onFermer={() => setModalPaiement(false)}
           onConfirmer={confirmerVente}
         />
@@ -469,6 +627,12 @@ export default function Caisse() {
         <Recu
           vente={recu}
           onFermer={() => setRecu(null)}
+        />
+      )}
+      {scannerOuvert && (
+        <BarcodeScanner
+          onDetecte={onCodeScanne}
+          onFermer={() => setScannerOuvert(false)}
         />
       )}
     </div>

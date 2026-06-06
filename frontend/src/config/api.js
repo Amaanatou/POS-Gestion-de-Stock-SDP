@@ -45,17 +45,33 @@ export const getProduits = (params = {}) => {
 export const getProduitParBarre = (code) =>
   request(`/produits/barre/${code}`, { headers: headers() });
 
-export const creerProduit = (data) =>
-  request('/produits', {
-    method: 'POST', headers: headers(),
-    body: JSON.stringify(data),
+// Crée un FormData depuis les données + fichier image optionnel
+function toFormData(data, imageFile) {
+  const fd = new FormData();
+  Object.entries(data).forEach(([k, v]) => {
+    if (v !== null && v !== undefined) fd.append(k, v);
   });
+  if (imageFile) fd.append('image', imageFile);
+  return fd;
+}
 
-export const modifierProduit = (id, data) =>
-  request(`/produits/${id}`, {
-    method: 'PUT', headers: headers(),
-    body: JSON.stringify(data),
-  });
+// Headers sans Content-Type pour FormData (le navigateur le gère tout seul)
+const headersFormData = () =>
+  token() ? { Authorization: `Bearer ${token()}` } : {};
+
+export const creerProduit = (data, imageFile = null) =>
+  fetch(`${BASE}/produits`, {
+    method: 'POST',
+    headers: headersFormData(),
+    body: toFormData(data, imageFile),
+  }).then(r => r.json()).catch(() => ({ success: false, message: 'Erreur réseau' }));
+
+export const modifierProduit = (id, data, imageFile = null) =>
+  fetch(`${BASE}/produits/${id}`, {
+    method: 'POST', // PHP ne supporte pas PUT avec $_FILES → on passe par POST
+    headers: headersFormData(),
+    body: toFormData({ ...data, _method: 'PUT' }, imageFile),
+  }).then(r => r.json()).catch(() => ({ success: false, message: 'Erreur réseau' }));
 
 // ─── STOCKS ──────────────────────────────────────────────────
 export const getStocks = () =>
@@ -86,10 +102,23 @@ export const marquerAlerteLue = (id) =>
   });
 
 // ─── VENTES (CAISSE POS) ─────────────────────────────────────
-export const creerVente = (lignes, modePaiement) =>
+export const creerVente = (lignes, modePaiement, clientId = null) =>
   request('/ventes', {
     method: 'POST', headers: headers(),
-    body: JSON.stringify({ lignes, mode_paiement: modePaiement }),
+    body: JSON.stringify({ lignes, mode_paiement: modePaiement, client_id: clientId }),
+  });
+
+// ─── CLIENTS (FIDÉLITÉ) ──────────────────────────────────────
+export const getClients = () =>
+  request('/clients', { headers: headers() });
+
+export const rechercherClient = (telephone) =>
+  request(`/clients/recherche/${telephone}`, { headers: headers() });
+
+export const creerClient = (data) =>
+  request('/clients', {
+    method: 'POST', headers: headers(),
+    body: JSON.stringify(data),
   });
 
 // ─── DASHBOARD ───────────────────────────────────────────────

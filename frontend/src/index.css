@@ -1,3 +1,24 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* Animation de la ligne de scan du code-barres */
+@keyframes scan {
+  0%   { transform: translateY(-60px); }
+  50%  { transform: translateY(60px); }
+  100% { transform: translateY(-60px); }
+}
+
+/* ── Impression : n'imprimer QUE le reçu (format ticket 80mm) ── */
+@media print {
+  body * { visibility: hidden; }
+  #recu-imprimable, #recu-imprimable * { visibility: visible; }
+  #recu-imprimable {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 80mm;
+    padding: 4mm;
+  }
+  @page { margin: 0; size: 80mm auto; }
+}

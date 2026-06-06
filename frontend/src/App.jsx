@@ -4,7 +4,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 import { AuthProvider, useAuth } from './context/AuthContext';
 
-// Chargement à la demande (réduit le bundle initial)
+// Chargement à la demande
 const Login      = lazy(() => import('./pages/Login'));
 const Dashboard  = lazy(() => import('./pages/Dashboard'));
 const Produits   = lazy(() => import('./pages/produits/Produits'));
@@ -14,7 +14,34 @@ const Caisse     = lazy(() => import('./pages/caisse/Caisse'));
 const Mouvements = lazy(() => import('./pages/stocks/Mouvements'));
 const Layout     = lazy(() => import('./components/layout/Layout'));
 
-// Écran de chargement entre les pages
+// Permissions par rôle
+const PERMISSIONS = {
+  caissier: ['/caisse'],
+  manager:  ['/dashboard', '/produits', '/stocks', '/mouvements', '/alertes', '/caisse'],
+  admin:    ['/dashboard', '/produits', '/stocks', '/mouvements', '/alertes', '/caisse'],
+};
+
+// Page d'accès refusé
+function AccesRefuse() {
+  const { utilisateur, deconnecter } = useAuth();
+  return (
+    <div className='flex flex-col items-center justify-center h-screen bg-gray-50 gap-4'>
+      <div className='text-6xl'>🚫</div>
+      <h1 className='text-2xl font-bold text-gray-800'>Accès refusé</h1>
+      <p className='text-gray-500'>
+        Votre rôle <span className='font-semibold capitalize'>{utilisateur?.role}</span> ne permet pas d'accéder à cette page.
+      </p>
+      <button
+        onClick={deconnecter}
+        className='mt-2 bg-[#1E3A5F] text-white px-6 py-2 rounded-lg hover:bg-blue-900'
+      >
+        Se déconnecter
+      </button>
+    </div>
+  );
+}
+
+// Écran de chargement
 function PageChargement() {
   return (
     <div className='flex items-center justify-center h-screen bg-gray-50'>
@@ -23,11 +50,25 @@ function PageChargement() {
   );
 }
 
-// Route protégée : redirige vers /login si non connecté
-function RoutePrivee({ children }) {
+// Route protégée : vérifie connexion + rôle
+function RoutePrivee({ children, page }) {
   const { utilisateur, chargement } = useAuth();
   if (chargement) return <PageChargement />;
-  return utilisateur ? children : <Navigate to='/login' replace />;
+  if (!utilisateur) return <Navigate to='/login' replace />;
+
+  // Si une page est spécifiée, vérifier la permission
+  if (page) {
+    const permis = PERMISSIONS[utilisateur.role] ?? [];
+    if (!permis.includes(page)) return <AccesRefuse />;
+  }
+  return children;
+}
+
+// Redirection intelligente selon le rôle après login
+function RedirectionParRole() {
+  const { utilisateur } = useAuth();
+  if (utilisateur?.role === 'caissier') return <Navigate to='/caisse' replace />;
+  return <Navigate to='/dashboard' replace />;
 }
 
 export default function App() {
@@ -39,13 +80,13 @@ export default function App() {
           <Routes>
             <Route path='/login' element={<Login />} />
             <Route path='/' element={<RoutePrivee><Layout /></RoutePrivee>}>
-              <Route index element={<Navigate to='/dashboard' replace />} />
-              <Route path='dashboard'  element={<Dashboard />} />
-              <Route path='produits'   element={<Produits />} />
-              <Route path='stocks'     element={<Stocks />} />
-              <Route path='mouvements' element={<Mouvements />} />
-              <Route path='alertes'    element={<Alertes />} />
-              <Route path='caisse'     element={<Caisse />} />
+              <Route index element={<RoutePrivee><RedirectionParRole /></RoutePrivee>} />
+              <Route path='dashboard'  element={<RoutePrivee page='/dashboard'><Dashboard /></RoutePrivee>} />
+              <Route path='produits'   element={<RoutePrivee page='/produits'><Produits /></RoutePrivee>} />
+              <Route path='stocks'     element={<RoutePrivee page='/stocks'><Stocks /></RoutePrivee>} />
+              <Route path='mouvements' element={<RoutePrivee page='/mouvements'><Mouvements /></RoutePrivee>} />
+              <Route path='alertes'    element={<RoutePrivee page='/alertes'><Alertes /></RoutePrivee>} />
+              <Route path='caisse'     element={<RoutePrivee page='/caisse'><Caisse /></RoutePrivee>} />
             </Route>
           </Routes>
         </Suspense>
