@@ -5,10 +5,16 @@ require_once __DIR__ . '/../controllers/StockController.php';
 require_once __DIR__ . '/../controllers/AlerteController.php';
 require_once __DIR__ . '/../controllers/VenteController.php';
 require_once __DIR__ . '/../controllers/DashboardController.php';
+require_once __DIR__ . '/../controllers/ClientController.php';
 
 $method   = $_SERVER['REQUEST_METHOD'];
 $uri      = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
 $segments = explode('/', trim($uri, '/'));
+
+// Support method override : POST avec _method=PUT (pour upload image)
+if ($method === 'POST' && !empty($_POST['_method'])) {
+    $method = strtoupper($_POST['_method']);
+}
 
 // segments[0] = 'sunustock_api', [1] = base, [2] = sub, [3] = subsub
 $base   = $segments[1] ?? '';
@@ -73,6 +79,14 @@ if ($base === 'ventes') {
 if ($base === 'dashboard' && $sub === 'stats' && $method === 'GET') {
     (new DashboardController($pdo))->stats();
     exit;
+}
+
+// ── CLIENTS ──────────────────────────────────────────────────
+if ($base === 'clients') {
+    $c = new ClientController($pdo);
+    if ($method === 'GET'  && !$sub)                 { $c->lister();           exit; }
+    if ($method === 'GET'  && $sub === 'recherche')  { $c->rechercher($subsub); exit; }
+    if ($method === 'POST' && !$sub)                 { $c->creer();            exit; }
 }
 
 // ── CATÉGORIES ───────────────────────────────────────────────
