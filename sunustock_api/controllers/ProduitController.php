@@ -254,4 +254,55 @@ class ProduitController {
         $sc->execute([$nom]);
         return $sc->fetchColumn() ?: null;
     }
+
+    // ── ACCESSOIRES / PRODUITS LIÉS ─────────────────────────
+
+    // Liste des accessoires suggérés pour un produit
+    public function accessoires(int $id): void {
+        auth();
+        $s = $this->pdo->prepare(
+            'SELECT p.id, p.nom, p.prix_vente, p.image_url,
+                    c.nom AS categorie,
+                    ap.remise_pack,
+                    s.quantite
+             FROM accessoires_produits ap
+             JOIN produits p   ON p.id = ap.accessoire_id
+             LEFT JOIN categories c ON c.id = p.categorie_id
+             LEFT JOIN stocks     s ON s.produit_id = p.id
+             WHERE ap.produit_id = ? AND p.actif = 1'
+        );
+        $s->execute([$id]);
+        echo json_encode(['success' => true, 'data' => $s->fetchAll()]);
+    }
+
+    // Lier un accessoire à un produit (manager/admin)
+    public function lierAccessoire(int $id): void {
+        $user = auth();
+        autoriser(['manager', 'admin'], $user);
+        $d      = json_decode(file_get_contents('php://input'), true);
+        $accId  = (int)($d['accessoire_id'] ?? 0);
+        $remise = (float)($d['remise_pack'] ?? 0);
+
+        if (!$accId || $accId === $id) {
+            http_response_code(400);
+            echo json_encode(['success' => false, 'message' => 'Accessoire invalide']);
+            return;
+        }
+        $this->pdo->prepare(
+            'INSERT INTO accessoires_produits (produit_id, accessoire_id, remise_pack)
+             VALUES (?, ?, ?)
+             ON DUPLICATE KEY UPDATE remise_pack = VALUES(remise_pack)'
+        )->execute([$id, $accId, $remise]);
+        echo json_encode(['success' => true, 'message' => 'Accessoire lié']);
+    }
+
+    // Délier un accessoire (manager/admin)
+    public function delierAccessoire(int $id, int $accId): void {
+        $user = auth();
+        autoriser(['manager', 'admin'], $user);
+        $this->pdo->prepare(
+            'DELETE FROM accessoires_produits WHERE produit_id = ? AND accessoire_id = ?'
+        )->execute([$id, $accId]);
+        echo json_encode(['success' => true, 'message' => 'Accessoire retiré']);
+    }
 }

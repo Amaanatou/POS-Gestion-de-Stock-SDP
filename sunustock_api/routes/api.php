@@ -36,6 +36,13 @@ if ($base === 'auth') {
 // ── PRODUITS ─────────────────────────────────────────────────
 if ($base === 'produits') {
     $c = new ProduitController($pdo);
+    // Accessoires (produit/{id}/accessoires) — placé avant les routes génériques
+    if (is_numeric($sub) && $subsub === 'accessoires') {
+        $accId = (int)($segments[4] ?? 0);
+        if ($method === 'GET')    { $c->accessoires($sub);             exit; }
+        if ($method === 'POST')   { $c->lierAccessoire($sub);          exit; }
+        if ($method === 'DELETE') { $c->delierAccessoire($sub, $accId); exit; }
+    }
     if ($method === 'GET'    && !$sub)            { $c->lister();          exit; }
     if ($method === 'GET'    && $sub === 'barre') { $c->parBarre($subsub); exit; }
     if ($method === 'GET'    && is_numeric($sub)) { $c->obtenir($sub);     exit; }
