@@ -123,6 +123,20 @@ export const creerVente = (lignes, modePaiement, clientId = null) =>
     body: JSON.stringify({ lignes, mode_paiement: modePaiement, client_id: clientId }),
   });
 
+// Historique des ventes (manager/admin)
+export const getVentes = () =>
+  request('/ventes', { headers: headers() });
+
+// Détails d'une vente (en-tête + lignes)
+export const getVenteDetails = (id) =>
+  request(`/ventes/${id}`, { headers: headers() });
+
+// Annuler une vente (restaure le stock)
+export const annulerVente = (id) =>
+  request(`/ventes/${id}/annuler`, {
+    method: 'POST', headers: headers(),
+  });
+
 // ─── CLIENTS (FIDÉLITÉ) ──────────────────────────────────────
 export const getClients = () =>
   request('/clients', { headers: headers() });

@@ -9,6 +9,7 @@ export default function Stocks() {
   const [chargement, setChargement] = useState(true);
   const [recherche, setRecherche]   = useState('');
   const [filtre, setFiltre]         = useState('tous');
+  const [modal, setModal]           = useState(null); // produit sélectionné pour entrée stock
 
   const charger = async () => {
     setChargement(true);
@@ -80,7 +81,9 @@ export default function Stocks() {
                 <td className='px-4 py-3 text-sm text-gray-600'>{s.seuil_alerte}</td>
                 <td className='px-4 py-3'><StockBadge statut={s.statut} /></td>
                 <td className='px-4 py-3'>
-                  <button className='bg-[#2196F3] hover:bg-blue-700 text-white text-xs
+                  <button
+                    onClick={() => setModal(s)}
+                    className='bg-[#2196F3] hover:bg-blue-700 text-white text-xs
                                px-3 py-1.5 rounded-lg transition-colors'>
                     + Entrée stock
                   </button>
@@ -93,6 +96,15 @@ export default function Stocks() {
           <div className='text-center py-12 text-gray-500'>Aucun produit trouvé</div>
         )}
       </div>
+
+      {/* Modal d'entrée de stock */}
+      {modal && (
+        <EntreeStockModal
+          produit={modal}
+          onFermer={() => setModal(null)}
+          onSuccess={() => { setModal(null); charger(); }}
+        />
+      )}
     </div>
   );
 }
