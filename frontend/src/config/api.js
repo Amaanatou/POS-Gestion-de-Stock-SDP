@@ -88,6 +88,25 @@ export const delierAccessoire = (produitId, accessoireId) =>
     method: 'DELETE', headers: headers(),
   });
 
+// ─── GALERIE D'IMAGES SECONDAIRES ────────────────────────────
+export const getImagesProduit = (produitId) =>
+  request(`/produits/${produitId}/images`, { headers: headers() });
+
+export const ajouterImageProduit = (produitId, imageFile) => {
+  const fd = new FormData();
+  fd.append('image', imageFile);
+  return fetch(`${BASE}/produits/${produitId}/images`, {
+    method: 'POST',
+    headers: headersFormData(),
+    body: fd,
+  }).then(r => r.json()).catch(() => ({ success: false, message: 'Erreur réseau' }));
+};
+
+export const supprimerImageProduit = (produitId, imageId) =>
+  request(`/produits/${produitId}/images/${imageId}`, {
+    method: 'DELETE', headers: headers(),
+  });
+
 // ─── STOCKS ──────────────────────────────────────────────────
 export const getStocks = () =>
   request('/stocks', { headers: headers() });
@@ -98,10 +117,10 @@ export const entreeStock = (produit_id, quantite, motif) =>
     body: JSON.stringify({ produit_id, quantite, motif }),
   });
 
-export const sortieStock = (produit_id, quantite, motif) =>
+export const sortieStock = (produit_id, quantite, motif, type = 'sortie') =>
   request('/stocks/sortie', {
     method: 'POST', headers: headers(),
-    body: JSON.stringify({ produit_id, quantite, motif }),
+    body: JSON.stringify({ produit_id, quantite, motif, type }),
   });
 
 export const getMouvements = () =>
@@ -150,6 +169,12 @@ export const creerClient = (data) =>
     body: JSON.stringify(data),
   });
 
+export const modifierClient = (id, data) =>
+  request(`/clients/${id}`, {
+    method: 'PUT', headers: headers(),
+    body: JSON.stringify(data),
+  });
+
 // ─── FOURNISSEURS ────────────────────────────────────────────
 export const getFournisseurs = () =>
   request('/fournisseurs', { headers: headers() });
@@ -170,6 +195,31 @@ export const basculerFournisseur = (id) =>
   request(`/fournisseurs/${id}/actif`, {
     method: 'PATCH', headers: headers(),
   });
+
+// ─── UTILISATEURS (PERSONNEL — ADMIN) ────────────────────────
+export const getUtilisateurs = () =>
+  request('/utilisateurs', { headers: headers() });
+
+export const creerUtilisateur = (data) =>
+  request('/utilisateurs', {
+    method: 'POST', headers: headers(),
+    body: JSON.stringify(data),
+  });
+
+export const modifierUtilisateur = (id, data) =>
+  request(`/utilisateurs/${id}`, {
+    method: 'PUT', headers: headers(),
+    body: JSON.stringify(data),
+  });
+
+export const basculerUtilisateur = (id) =>
+  request(`/utilisateurs/${id}/actif`, {
+    method: 'PATCH', headers: headers(),
+  });
+
+// ─── JOURNAL D'AUDIT (ADMIN) ─────────────────────────────────
+export const getJournal = (action = '') =>
+  request(`/journal${action ? '?action=' + action : ''}`, { headers: headers() });
 
 // ─── DASHBOARD ───────────────────────────────────────────────
 export const getDashboardStats = () =>

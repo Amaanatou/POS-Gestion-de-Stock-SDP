@@ -358,9 +358,19 @@ export default function Caisse() {
   // ── Gestion du panier ─────────────────────────────────────
   // suggererAccessoires : true pour un produit principal, false pour un accessoire
   const ajouterAuPanier = (produit, suggererAccessoires = true) => {
+    const stockDispo = produit.quantite ?? Infinity;
+    if (stockDispo <= 0) {
+      toast.error(`${produit.nom} est en rupture de stock`);
+      return;
+    }
     setPanier(prev => {
       const existe = prev.find(l => l.produit.id === produit.id);
       if (existe) {
+        // Ne pas dépasser le stock disponible
+        if (existe.quantite >= stockDispo) {
+          toast.error(`Stock max atteint pour ${produit.nom} (${stockDispo})`);
+          return prev;
+        }
         return prev.map(l =>
           l.produit.id === produit.id
             ? { ...l, quantite: l.quantite + 1 }
@@ -389,7 +399,17 @@ export default function Caisse() {
   const modifierQuantite = (id, delta) => {
     setPanier(prev =>
       prev
-        .map(l => l.produit.id === id ? { ...l, quantite: l.quantite + delta } : l)
+        .map(l => {
+          if (l.produit.id !== id) return l;
+          const nouvelleQte = l.quantite + delta;
+          // Empêche de dépasser le stock disponible
+          const stockDispo = l.produit.quantite ?? Infinity;
+          if (delta > 0 && nouvelleQte > stockDispo) {
+            toast.error(`Stock max atteint (${stockDispo})`);
+            return l;
+          }
+          return { ...l, quantite: nouvelleQte };
+        })
         .filter(l => l.quantite > 0)
     );
   };

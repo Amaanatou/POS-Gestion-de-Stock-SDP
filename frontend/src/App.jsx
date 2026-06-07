@@ -14,13 +14,16 @@ const Caisse     = lazy(() => import('./pages/caisse/Caisse'));
 const Mouvements = lazy(() => import('./pages/stocks/Mouvements'));
 const Ventes       = lazy(() => import('./pages/ventes/Ventes'));
 const Fournisseurs = lazy(() => import('./pages/fournisseurs/Fournisseurs'));
+const Clients      = lazy(() => import('./pages/clients/Clients'));
+const Utilisateurs = lazy(() => import('./pages/utilisateurs/Utilisateurs'));
+const Journal      = lazy(() => import('./pages/journal/Journal'));
 const Layout       = lazy(() => import('./components/layout/Layout'));
 
 // Permissions par rôle
 const PERMISSIONS = {
   caissier: ['/caisse'],
-  manager:  ['/dashboard', '/produits', '/stocks', '/mouvements', '/alertes', '/caisse', '/ventes', '/fournisseurs'],
-  admin:    ['/dashboard', '/produits', '/stocks', '/mouvements', '/alertes', '/caisse', '/ventes', '/fournisseurs'],
+  manager:  ['/dashboard', '/produits', '/stocks', '/mouvements', '/alertes', '/caisse', '/ventes', '/fournisseurs', '/clients'],
+  admin:    ['/dashboard', '/produits', '/stocks', '/mouvements', '/alertes', '/caisse', '/ventes', '/fournisseurs', '/clients', '/utilisateurs', '/journal'],
 };
 
 // Page d'accès refusé
@@ -91,6 +94,9 @@ export default function App() {
               <Route path='caisse'     element={<RoutePrivee page='/caisse'><Caisse /></RoutePrivee>} />
               <Route path='ventes'      element={<RoutePrivee page='/ventes'><Ventes /></RoutePrivee>} />
               <Route path='fournisseurs' element={<RoutePrivee page='/fournisseurs'><Fournisseurs /></RoutePrivee>} />
+              <Route path='clients'      element={<RoutePrivee page='/clients'><Clients /></RoutePrivee>} />
+              <Route path='utilisateurs' element={<RoutePrivee page='/utilisateurs'><Utilisateurs /></RoutePrivee>} />
+              <Route path='journal'      element={<RoutePrivee page='/journal'><Journal /></RoutePrivee>} />
             </Route>
           </Routes>
         </Suspense>

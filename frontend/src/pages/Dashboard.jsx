@@ -62,6 +62,15 @@ export default function Dashboard() {
     ? stats?.ca_mois
     : stats?.ca_jour;
 
+  const tvaAffiche = vueCA === 'semaine'
+    ? stats?.tva_semaine
+    : vueCA === 'mois'
+    ? stats?.tva_mois
+    : stats?.tva_jour;
+
+  // Total encaissé (TTC) = CA HT + TVA collectée
+  const ttcAffiche = (caAffiche ?? 0) + (tvaAffiche ?? 0);
+
   const kpis = [
     {
       titre:    'Produits en catalogue',
@@ -85,11 +94,11 @@ export default function Dashboard() {
       couleur:  'bg-green-500',
     },
     {
-      titre:    vueCA === 'semaine' ? 'CA cette semaine'
-                : vueCA === 'mois' ? 'CA ce mois'
-                : 'CA aujourd\'hui',
+      titre:    vueCA === 'semaine' ? 'CA cette semaine (HT)'
+                : vueCA === 'mois' ? 'CA ce mois (HT)'
+                : 'CA aujourd\'hui (HT)',
       valeur:   caAffiche !== undefined ? fcfa(caAffiche) : '—',
-      sousTitre:'chiffre d\'affaires',
+      sousTitre:tvaAffiche !== undefined ? `+ ${fcfa(tvaAffiche)} de TVA` : 'chiffre d\'affaires',
       icone:    TrendingUp,
       couleur:  'bg-[#2196F3]',
       petit:    true,
@@ -125,6 +134,30 @@ export default function Dashboard() {
       {/* KPIs */}
       <div className='grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4'>
         {kpis.map(k => <CarteKPI key={k.titre} {...k} />)}
+      </div>
+
+      {/* Récapitulatif comptable de la période */}
+      <div className='bg-white rounded-xl shadow p-5'>
+        <h2 className='text-base font-semibold text-gray-700 mb-3'>
+          Récapitulatif comptable — {vueCA === 'semaine' ? 'cette semaine' : vueCA === 'mois' ? 'ce mois' : "aujourd'hui"}
+        </h2>
+        <div className='grid grid-cols-1 sm:grid-cols-3 gap-3'>
+          <div className='bg-blue-50 rounded-lg p-4'>
+            <p className='text-xs text-gray-500'>Chiffre d'affaires (HT)</p>
+            <p className='text-xl font-bold text-[#1E3A5F]'>{fcfa(caAffiche)}</p>
+            <p className='text-[11px] text-gray-400 mt-0.5'>revenu de l'entreprise</p>
+          </div>
+          <div className='bg-orange-50 rounded-lg p-4'>
+            <p className='text-xs text-gray-500'>TVA collectée (18%)</p>
+            <p className='text-xl font-bold text-[#FF6B35]'>{fcfa(tvaAffiche)}</p>
+            <p className='text-[11px] text-gray-400 mt-0.5'>à reverser à l'État</p>
+          </div>
+          <div className='bg-green-50 rounded-lg p-4'>
+            <p className='text-xs text-gray-500'>Total encaissé (TTC)</p>
+            <p className='text-xl font-bold text-green-700'>{fcfa(ttcAffiche)}</p>
+            <p className='text-[11px] text-gray-400 mt-0.5'>argent reçu en caisse</p>
+          </div>
+        </div>
       </div>
 
       {/* Graphiques */}
