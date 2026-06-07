@@ -41,6 +41,38 @@ class ProduitController {
 
         $sql .= ' ORDER BY p.nom ASC';
 
+        // ── PAGINATION SERVEUR (§3.4) ──
+        // Si le paramètre "page" est fourni → on pagine (back-office).
+        // Sinon → on renvoie tout (caisse, accessoires).
+        if (isset($_GET['page'])) {
+            $page    = max(1, (int)$_GET['page']);
+            $perPage = min(100, max(5, (int)($_GET['per_page'] ?? 15)));
+
+            // 1) Compter le total (mêmes filtres, sans LIMIT)
+            $sqlCount = preg_replace('/SELECT .*? FROM/s', 'SELECT COUNT(*) FROM', $sql, 1);
+            $sqlCount = preg_replace('/ ORDER BY .*/s', '', $sqlCount);
+            $stc = $this->pdo->prepare($sqlCount);
+            $stc->execute($params);
+            $total = (int)$stc->fetchColumn();
+
+            // 2) Récupérer la page demandée
+            $offset = ($page - 1) * $perPage;
+            $sql   .= " LIMIT $perPage OFFSET $offset";
+            $stmt   = $this->pdo->prepare($sql);
+            $stmt->execute($params);
+
+            echo json_encode([
+                'success'     => true,
+                'data'        => $stmt->fetchAll(),
+                'total'       => $total,
+                'page'        => $page,
+                'per_page'    => $perPage,
+                'total_pages' => (int)ceil($total / $perPage),
+            ]);
+            return;
+        }
+
+        // Sans pagination : tout renvoyer
         $stmt = $this->pdo->prepare($sql);
         $stmt->execute($params);
         $rows = $stmt->fetchAll();
@@ -129,6 +161,16 @@ class ProduitController {
         $this->pdo->prepare('INSERT INTO stocks (produit_id, quantite) VALUES (?, 0)')
                   ->execute([$newId]);
 
+        // SKU auto-généré si non fourni : PREFIXE-00042
+        if (empty($d['sku'])) {
+            $prefixe = strtoupper(substr(
+                preg_replace('/[^A-Za-z]/', '', $d['categorie'] ?? $d['nom']) ?: 'PRD', 0, 3
+            ));
+            $sku = $prefixe . '-' . str_pad($newId, 5, '0', STR_PAD_LEFT);
+            $this->pdo->prepare('UPDATE produits SET sku = ? WHERE id = ?')
+                      ->execute([$sku, $newId]);
+        }
+
         echo json_encode(['success' => true, 'id' => $newId, 'message' => 'Produit créé avec succès']);
     }
 
@@ -138,6 +180,11 @@ class ProduitController {
 
         $d     = $this->getDonnees();
         $catId = $this->resoudreCategorieId($d['categorie'] ?? '');
+
+        // Prix avant modification (pour journaliser un changement de prix)
+        $sp = $this->pdo->prepare('SELECT nom, prix_vente FROM produits WHERE id = ?');
+        $sp->execute([$id]);
+        $avant = $sp->fetch();
 
         // Gérer l'image : nouvelle image ou conserver l'ancienne
         $imageUrl = $this->uploadImage();
@@ -165,6 +212,14 @@ class ProduitController {
             $imageUrl,
             $id,
         ]);
+
+        // Journaliser un changement de prix (action critique du cahier)
+        if ($avant && (float)$avant['prix_vente'] !== (float)$d['prix_vente']) {
+            journaliser($this->pdo, $user['id'], 'modification_prix',
+                $avant['nom'],
+                'Prix : ' . $avant['prix_vente'] . ' → ' . $d['prix_vente'] . ' FCFA');
+        }
+
         echo json_encode(['success' => true, 'message' => 'Produit modifié avec succès']);
     }
 
@@ -304,5 +359,56 @@ class ProduitController {
             'DELETE FROM accessoires_produits WHERE produit_id = ? AND accessoire_id = ?'
         )->execute([$id, $accId]);
         echo json_encode(['success' => true, 'message' => 'Accessoire retiré']);
+    }
+
+    // ── GALERIE D'IMAGES SECONDAIRES (§2.1) ─────────────────
+
+    // Liste les images secondaires d'un produit
+    public function listerImages(int $id): void {
+        auth();
+        $s = $this->pdo->prepare(
+            'SELECT id, image_url FROM produit_images WHERE produit_id = ? ORDER BY id'
+        );
+        $s->execute([$id]);
+        echo json_encode(['success' => true, 'data' => $s->fetchAll()]);
+    }
+
+    // Ajoute une image secondaire (manager/admin)
+    public function ajouterImage(int $id): void {
+        $user = auth();
+        autoriser(['manager', 'admin'], $user);
+
+        $url = $this->uploadImage();  // réutilise le helper ($_FILES['image'])
+        if (!$url) {
+            http_response_code(400);
+            echo json_encode(['success' => false, 'message' => 'Aucune image valide envoyée']);
+            return;
+        }
+        $this->pdo->prepare(
+            'INSERT INTO produit_images (produit_id, image_url) VALUES (?, ?)'
+        )->execute([$id, $url]);
+
+        echo json_encode([
+            'success' => true,
+            'message' => 'Image ajoutée',
+            'data'    => ['id' => (int)$this->pdo->lastInsertId(), 'image_url' => $url],
+        ]);
+    }
+
+    // Supprime une image secondaire (manager/admin)
+    public function supprimerImage(int $id, int $imageId): void {
+        $user = auth();
+        autoriser(['manager', 'admin'], $user);
+        // Supprimer le fichier physique si possible
+        $s = $this->pdo->prepare('SELECT image_url FROM produit_images WHERE id = ? AND produit_id = ?');
+        $s->execute([$imageId, $id]);
+        $url = $s->fetchColumn();
+        if ($url) {
+            $fichier = $this->uploadDir . basename($url);
+            if (is_file($fichier)) @unlink($fichier);
+        }
+        $this->pdo->prepare('DELETE FROM produit_images WHERE id = ? AND produit_id = ?')
+                  ->execute([$imageId, $id]);
+        echo json_encode(['success' => true, 'message' => 'Image supprimée']);
     }
 }

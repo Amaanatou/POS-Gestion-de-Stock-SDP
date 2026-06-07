@@ -24,3 +24,15 @@ function autoriser(array $roles, array $user): void {
         die(json_encode(['success' => false, 'message' => 'Accès refusé — rôle insuffisant']));
     }
 }
+
+// Journalise une action critique (annulation, modif prix, retrait caisse...)
+function journaliser(PDO $pdo, int $userId, string $action, string $cible = '', string $details = ''): void {
+    try {
+        $pdo->prepare(
+            'INSERT INTO journal_actions (utilisateur_id, action, cible, details)
+             VALUES (?, ?, ?, ?)'
+        )->execute([$userId, $action, $cible, $details]);
+    } catch (Exception $e) {
+        // Ne jamais bloquer l'action principale si le journal échoue
+    }
+}

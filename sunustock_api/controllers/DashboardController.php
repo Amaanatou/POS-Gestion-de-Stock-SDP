@@ -22,29 +22,48 @@ class DashboardController {
              WHERE DATE(created_at) = CURDATE() AND statut = "validee"'
         )->fetchColumn();
 
+        // Le Chiffre d'Affaires se calcule HORS TAXES (HT) — norme comptable.
+        // La TVA collectée appartient à l'État, pas à l'entreprise.
         $caJour = $this->pdo->query(
-            'SELECT COALESCE(SUM(total_ttc), 0) FROM ventes
+            'SELECT COALESCE(SUM(total_ht), 0) FROM ventes
              WHERE DATE(created_at) = CURDATE() AND statut = "validee"'
         )->fetchColumn();
 
         $caSemaine = $this->pdo->query(
-            'SELECT COALESCE(SUM(total_ttc), 0) FROM ventes
+            'SELECT COALESCE(SUM(total_ht), 0) FROM ventes
              WHERE YEARWEEK(created_at, 1) = YEARWEEK(NOW(), 1)
                AND statut = "validee"'
         )->fetchColumn();
 
         $caMois = $this->pdo->query(
-            'SELECT COALESCE(SUM(total_ttc), 0) FROM ventes
+            'SELECT COALESCE(SUM(total_ht), 0) FROM ventes
              WHERE YEAR(created_at) = YEAR(NOW())
                AND MONTH(created_at) = MONTH(NOW())
                AND statut = "validee"'
+        )->fetchColumn();
+
+        // TVA collectée (à reverser à l'État) par période
+        $tvaJour = $this->pdo->query(
+            'SELECT COALESCE(SUM(total_tva), 0) FROM ventes
+             WHERE DATE(created_at) = CURDATE() AND statut = "validee"'
+        )->fetchColumn();
+
+        $tvaSemaine = $this->pdo->query(
+            'SELECT COALESCE(SUM(total_tva), 0) FROM ventes
+             WHERE YEARWEEK(created_at, 1) = YEARWEEK(NOW(), 1) AND statut = "validee"'
+        )->fetchColumn();
+
+        $tvaMois = $this->pdo->query(
+            'SELECT COALESCE(SUM(total_tva), 0) FROM ventes
+             WHERE YEAR(created_at) = YEAR(NOW())
+               AND MONTH(created_at) = MONTH(NOW()) AND statut = "validee"'
         )->fetchColumn();
 
         // ── Ventes des 7 derniers jours ───────────────────────
         $ventesSemaine = $this->pdo->query(
             'SELECT DATE_FORMAT(created_at, "%a") AS jour,
                     COUNT(*) AS ventes,
-                    COALESCE(SUM(total_ttc), 0) AS ca
+                    COALESCE(SUM(total_ht), 0) AS ca
              FROM ventes
              WHERE created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)
                AND statut = "validee"
@@ -102,6 +121,9 @@ class DashboardController {
                 'ca_jour'           => (float)$caJour,
                 'ca_semaine'        => (float)$caSemaine,
                 'ca_mois'           => (float)$caMois,
+                'tva_jour'          => (float)$tvaJour,
+                'tva_semaine'       => (float)$tvaSemaine,
+                'tva_mois'          => (float)$tvaMois,
                 'ventes_semaine'    => array_map(fn($r) => [
                     'jour'   => $r['jour'],
                     'ventes' => (int)$r['ventes'],
