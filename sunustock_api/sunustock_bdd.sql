@@ -144,6 +144,28 @@ CREATE TABLE accessoires_produits (
     FOREIGN KEY (accessoire_id) REFERENCES produits(id) ON DELETE CASCADE
 );
 
+-- Galerie d'images secondaires des produits (§2.1)
+CREATE TABLE produit_images (
+    id         INT AUTO_INCREMENT PRIMARY KEY,
+    produit_id INT NOT NULL,
+    image_url  VARCHAR(500) NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (produit_id) REFERENCES produits(id) ON DELETE CASCADE,
+    INDEX idx_produit_img (produit_id)
+);
+
+-- Journal d'audit : traçabilité des actions critiques (sécurité §3.3)
+CREATE TABLE journal_actions (
+    id             INT AUTO_INCREMENT PRIMARY KEY,
+    utilisateur_id INT,
+    action         VARCHAR(50)  NOT NULL,
+    cible          VARCHAR(150),
+    details        TEXT,
+    created_at     TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (utilisateur_id) REFERENCES utilisateurs(id) ON DELETE SET NULL,
+    INDEX idx_journal_date (created_at)
+);
+
 -- ============================================================
 -- DONNÉES ENRICHIES
 -- ============================================================

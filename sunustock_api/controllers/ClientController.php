@@ -73,4 +73,31 @@ class ClientController {
             ],
         ]);
     }
+
+    // Modifier un client (manager/admin)
+    public function modifier(int $id): void {
+        $user = auth();
+        autoriser(['manager', 'admin'], $user);
+        $d   = json_decode(file_get_contents('php://input'), true);
+        $nom = trim($d['nom'] ?? '');
+        $tel = trim($d['telephone'] ?? '');
+
+        if (!$nom || !$tel) {
+            http_response_code(400);
+            echo json_encode(['success' => false, 'message' => 'Nom et téléphone requis']);
+            return;
+        }
+        // Téléphone unique (sauf lui-même)
+        $check = $this->pdo->prepare('SELECT id FROM clients WHERE telephone = ? AND id <> ?');
+        $check->execute([$tel, $id]);
+        if ($check->fetch()) {
+            http_response_code(409);
+            echo json_encode(['success' => false, 'message' => 'Ce numéro est déjà utilisé']);
+            return;
+        }
+        $this->pdo->prepare(
+            'UPDATE clients SET nom = ?, telephone = ?, statut = ? WHERE id = ?'
+        )->execute([$nom, $tel, $d['statut'] ?? 'standard', $id]);
+        echo json_encode(['success' => true, 'message' => 'Client modifié']);
+    }
 }

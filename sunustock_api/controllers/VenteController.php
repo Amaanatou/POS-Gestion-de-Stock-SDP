@@ -59,6 +59,25 @@ class VenteController {
             foreach ($lignes as $l) {
                 $sousTot = $l['prix_vente'] * $l['quantite'];
 
+                // ── VÉRIFICATION DU STOCK (verrou FOR UPDATE) ──
+                // Empêche de vendre plus que la quantité disponible.
+                $sv2 = $this->pdo->prepare(
+                    'SELECT s.quantite, p.nom
+                     FROM stocks s JOIN produits p ON p.id = s.produit_id
+                     WHERE s.produit_id = ? FOR UPDATE'
+                );
+                $sv2->execute([$l['produit_id']]);
+                $stockActuel = $sv2->fetch();
+                if (!$stockActuel) {
+                    throw new Exception('Produit introuvable (ID ' . $l['produit_id'] . ')');
+                }
+                if ((int)$stockActuel['quantite'] < (int)$l['quantite']) {
+                    throw new Exception(
+                        'Stock insuffisant pour "' . $stockActuel['nom'] . '" : ' .
+                        $stockActuel['quantite'] . ' disponible(s), ' . $l['quantite'] . ' demandé(s)'
+                    );
+                }
+
                 $this->pdo->prepare(
                     'INSERT INTO lignes_ventes
                      (vente_id, produit_id, nom_produit, quantite, prix_unitaire, tva, sous_total)
@@ -242,6 +261,11 @@ class VenteController {
             // Marquer la vente comme annulée
             $this->pdo->prepare('UPDATE ventes SET statut = "annulee" WHERE id = ?')
                       ->execute([$id]);
+
+            // Journaliser l'action critique
+            journaliser($this->pdo, $user['id'], 'annulation_vente',
+                'Vente ' . $vente['numero'],
+                'Montant : ' . $vente['total_ttc'] . ' FCFA');
 
             $this->pdo->commit();
             echo json_encode(['success' => true, 'message' => 'Vente annulée, stock restauré']);

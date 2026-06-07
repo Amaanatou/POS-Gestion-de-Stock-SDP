@@ -68,6 +68,13 @@ class StockController {
                  VALUES (?, "entree", ?, ?, ?, ?, ?)'
             )->execute([$pid, $qte, $avant, $apres, $motif, $user['id']]);
 
+            // Récupérer le nom pour le journal
+            $sn = $this->pdo->prepare('SELECT nom FROM produits WHERE id = ?');
+            $sn->execute([$pid]);
+            journaliser($this->pdo, $user['id'], 'entree_stock',
+                $sn->fetchColumn() ?: ('Produit #' . $pid),
+                "+$qte unités ($motif) — stock : $avant → $apres");
+
             $this->pdo->commit();
             echo json_encode([
                 'success'         => true,
@@ -87,6 +94,8 @@ class StockController {
         $pid   = (int)($d['produit_id'] ?? 0);
         $qte   = (int)($d['quantite']   ?? 0);
         $motif = $d['motif'] ?? 'Vente';
+        // Type de sortie : sortie (défaut), perte (casse/vol/péremption), retour
+        $type  = in_array($d['type'] ?? '', ['sortie', 'perte', 'retour']) ? $d['type'] : 'sortie';
 
         if (!$pid || $qte <= 0) {
             http_response_code(400);
@@ -97,7 +106,9 @@ class StockController {
         $this->pdo->beginTransaction();
         try {
             $s = $this->pdo->prepare(
-                'SELECT quantite FROM stocks WHERE produit_id = ? FOR UPDATE'
+                'SELECT s.quantite, p.nom FROM stocks s
+                 JOIN produits p ON p.id = s.produit_id
+                 WHERE s.produit_id = ? FOR UPDATE'
             );
             $s->execute([$pid]);
             $stock = $s->fetch();
@@ -114,8 +125,14 @@ class StockController {
             $this->pdo->prepare(
                 'INSERT INTO mouvements_stock
                  (produit_id, type_mouvement, quantite, quantite_avant, quantite_apres, motif, utilisateur_id)
-                 VALUES (?, "sortie", ?, ?, ?, ?, ?)'
-            )->execute([$pid, $qte, $avant, $apres, $motif, $user['id']]);
+                 VALUES (?, ?, ?, ?, ?, ?, ?)'
+            )->execute([$pid, $type, $qte, $avant, $apres, $motif, $user['id']]);
+
+            // Journaliser les pertes/casses (action sensible)
+            if ($type === 'perte') {
+                journaliser($this->pdo, $user['id'], 'perte_casse',
+                    $stock['nom'], "-$qte unités ($motif) — stock : $avant → $apres");
+            }
 
             // Générer une alerte si le stock passe sous le seuil
             $prod = $this->pdo->prepare('SELECT seuil_alerte FROM produits WHERE id = ?');
@@ -173,6 +190,9 @@ class StockController {
              (produit_id, type_mouvement, quantite, quantite_avant, quantite_apres, motif, utilisateur_id)
              VALUES (?, "ajustement", ?, ?, ?, ?, ?)'
         )->execute([$pid, abs($newQt - $avant), $avant, $newQt, $motif, $user['id']]);
+
+        journaliser($this->pdo, $user['id'], 'ajustement_stock',
+            'Produit #' . $pid, "Stock : $avant → $newQt ($motif)");
 
         echo json_encode([
             'success'        => true,
