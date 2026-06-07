@@ -2,10 +2,11 @@
 import { useState, useEffect, useRef } from 'react';
 import { useForm } from 'react-hook-form';
 import toast from 'react-hot-toast';
-import { Plus, Pencil, Search, ImagePlus, X, Archive, Link2 } from 'lucide-react';
+import { Plus, Pencil, Search, ImagePlus, X, Archive, Link2, Images } from 'lucide-react';
 import { getProduits, creerProduit, modifierProduit } from '../../config/api';
 import StockBadge from '../../components/ui/StockBadge';
 import AccessoiresModal from './AccessoiresModal';
+import GalerieModal from './GalerieModal';
 
 // ── Placeholder image ─────────────────────────────────────────
 function ImgProduit({ src, nom, size = 10 }) {
@@ -219,19 +220,35 @@ export default function Produits() {
   const [filtreStatut, setFiltreStatut]       = useState('');
   const [modal, setModal]           = useState(null);
   const [modalAccessoires, setModalAccessoires] = useState(null); // produit dont on gère les accessoires
+  const [modalGalerie, setModalGalerie] = useState(null); // produit dont on gère la galerie
+  const [page, setPage]             = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [total, setTotal]           = useState(0);
+  const PER_PAGE = 15;
 
   const charger = async () => {
     setChargement(true);
-    const params = {};
-    if (recherche)      params.search    = recherche;
+    const params = { page, per_page: PER_PAGE };
+    if (recherche)       params.search    = recherche;
     if (filtreCategorie) params.categorie = filtreCategorie;
     if (filtreStatut)    params.statut    = filtreStatut;
     const res = await getProduits(params);
-    if (res.success) setProduits(res.data);
+    if (res.success) {
+      setProduits(res.data);
+      setTotalPages(res.total_pages || 1);
+      setTotal(res.total || res.data.length);
+    }
     setChargement(false);
   };
 
-  useEffect(() => { charger(); }, [recherche, filtreCategorie, filtreStatut]);
+  // Recharger quand la page change
+  useEffect(() => { charger(); }, [page]);
+
+  // Revenir à la page 1 quand un filtre change (et recharger)
+  useEffect(() => {
+    if (page === 1) charger();
+    else setPage(1);
+  }, [recherche, filtreCategorie, filtreStatut]);
 
   return (
     <div>
@@ -327,6 +344,11 @@ export default function Produits() {
                         title='Gérer les accessoires'>
                         <Link2 size={15} />
                       </button>
+                      <button onClick={() => setModalGalerie(p)}
+                        className='p-1.5 text-purple-500 hover:bg-purple-50 rounded-lg transition-colors'
+                        title="Galerie d'images">
+                        <Images size={15} />
+                      </button>
                     </div>
                   </td>
                 </tr>
@@ -341,9 +363,46 @@ export default function Produits() {
         </div>
       )}
 
-      <p className='text-xs text-gray-400 mt-3 text-right'>
-        {produits.length} produit{produits.length > 1 ? 's' : ''} affiché{produits.length > 1 ? 's' : ''}
-      </p>
+      {/* Pagination serveur */}
+      <div className='flex items-center justify-between mt-4'>
+        <p className='text-xs text-gray-400'>
+          {total} produit{total > 1 ? 's' : ''} au total — page {page} / {totalPages}
+        </p>
+        {totalPages > 1 && (
+          <div className='flex items-center gap-1'>
+            <button
+              onClick={() => setPage(p => Math.max(1, p - 1))}
+              disabled={page === 1}
+              className='px-3 py-1.5 rounded-lg border text-sm text-gray-600
+                         hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed'>
+              ← Précédent
+            </button>
+            {/* Numéros de page */}
+            {Array.from({ length: totalPages }, (_, i) => i + 1)
+              .filter(n => n === 1 || n === totalPages || Math.abs(n - page) <= 1)
+              .map((n, idx, arr) => (
+                <span key={n} className='flex'>
+                  {idx > 0 && arr[idx - 1] !== n - 1 && (
+                    <span className='px-2 py-1.5 text-gray-400'>…</span>
+                  )}
+                  <button
+                    onClick={() => setPage(n)}
+                    className={`w-9 py-1.5 rounded-lg text-sm font-medium transition-colors
+                      ${n === page ? 'bg-[#1E3A5F] text-white' : 'border text-gray-600 hover:bg-gray-50'}`}>
+                    {n}
+                  </button>
+                </span>
+              ))}
+            <button
+              onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+              disabled={page === totalPages}
+              className='px-3 py-1.5 rounded-lg border text-sm text-gray-600
+                         hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed'>
+              Suivant →
+            </button>
+          </div>
+        )}
+      </div>
 
       {modal && (
         <ProduitModal
@@ -356,8 +415,14 @@ export default function Produits() {
       {modalAccessoires && (
         <AccessoiresModal
           produit={modalAccessoires}
-          tousLesProduits={produits}
           onFermer={() => setModalAccessoires(null)}
+        />
+      )}
+
+      {modalGalerie && (
+        <GalerieModal
+          produit={modalGalerie}
+          onFermer={() => setModalGalerie(null)}
         />
       )}
     </div>

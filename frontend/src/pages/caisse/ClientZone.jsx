@@ -1,9 +1,11 @@
 // src/pages/caisse/ClientZone.jsx
-// Zone client fidélité à la caisse — recherche par téléphone, statut, points
+// Zone client fidélité à la caisse — recherche par téléphone OU scan QR, statut, points
 import { useState } from 'react';
 import toast from 'react-hot-toast';
-import { User, UserPlus, X, Search, Star, Crown } from 'lucide-react';
+import { User, UserPlus, X, Search, Star, Crown, QrCode } from 'lucide-react';
 import { rechercherClient, creerClient } from '../../config/api';
+import QRScannerClient from '../../components/ui/QRScannerClient';
+import { QR_PREFIXE } from '../clients/Clients';
 
 // Badge de statut fidélité
 function StatutBadge({ statut }) {
@@ -85,6 +87,21 @@ export default function ClientZone({ client, onClientChange }) {
   const [recherche, setRecherche]   = useState('');
   const [loading, setLoading]       = useState(false);
   const [modeCreation, setModeCreation] = useState(false);
+  const [scannerQR, setScannerQR]   = useState(false);
+
+  // Appelé quand le QR est scanné : extrait le téléphone et cherche le client
+  const onQRScanne = async (texte) => {
+    setScannerQR(false);
+    // Le QR contient "SUNUCLIENT:771234567"
+    const tel = texte.startsWith(QR_PREFIXE) ? texte.slice(QR_PREFIXE.length) : texte;
+    const res = await rechercherClient(tel.trim());
+    if (res.success) {
+      onClientChange(res.data);
+      toast.success(`Client : ${res.data.nom}`);
+    } else {
+      toast.error('Client introuvable pour ce QR');
+    }
+  };
 
   const chercher = async () => {
     const tel = recherche.trim();
@@ -155,31 +172,43 @@ export default function ClientZone({ client, onClientChange }) {
 
   // ── Recherche ──
   return (
-    <div className='flex gap-2'>
-      <div className='relative flex-1'>
-        <Search size={14} className='absolute left-2.5 top-2.5 text-gray-400' />
-        <input
-          type='tel'
-          placeholder='Téléphone client (fidélité)'
-          value={recherche}
-          onChange={e => setRecherche(e.target.value)}
-          onKeyDown={e => e.key === 'Enter' && chercher()}
-          className='w-full pl-8 pr-3 py-2 border border-gray-300 rounded-lg text-sm
-                     focus:outline-none focus:ring-2 focus:ring-[#2196F3]'
-        />
+    <>
+      <div className='flex gap-2'>
+        <div className='relative flex-1'>
+          <Search size={14} className='absolute left-2.5 top-2.5 text-gray-400' />
+          <input
+            type='tel'
+            placeholder='Téléphone client (fidélité)'
+            value={recherche}
+            onChange={e => setRecherche(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && chercher()}
+            className='w-full pl-8 pr-3 py-2 border border-gray-300 rounded-lg text-sm
+                       focus:outline-none focus:ring-2 focus:ring-[#2196F3]'
+          />
+        </div>
+        <button onClick={chercher} disabled={loading}
+          title='Rechercher le client'
+          className='bg-[#1E3A5F] text-white px-3 rounded-lg hover:bg-blue-900
+                     disabled:opacity-50 transition-colors'>
+          {loading ? '...' : <Search size={16} />}
+        </button>
+        <button onClick={() => setScannerQR(true)}
+          title='Scanner le QR fidélité'
+          className='bg-[#FF6B35] text-white px-3 rounded-lg hover:bg-orange-600
+                     transition-colors'>
+          <QrCode size={16} />
+        </button>
+        <button onClick={() => setModeCreation(true)}
+          title='Nouveau client'
+          className='border border-gray-300 text-gray-600 px-3 rounded-lg
+                     hover:bg-gray-50 transition-colors'>
+          <UserPlus size={16} />
+        </button>
       </div>
-      <button onClick={chercher} disabled={loading}
-        title='Rechercher le client'
-        className='bg-[#1E3A5F] text-white px-3 rounded-lg hover:bg-blue-900
-                   disabled:opacity-50 transition-colors'>
-        {loading ? '...' : <Search size={16} />}
-      </button>
-      <button onClick={() => setModeCreation(true)}
-        title='Nouveau client'
-        className='border border-gray-300 text-gray-600 px-3 rounded-lg
-                   hover:bg-gray-50 transition-colors'>
-        <UserPlus size={16} />
-      </button>
-    </div>
+
+      {scannerQR && (
+        <QRScannerClient onScan={onQRScanne} onFermer={() => setScannerQR(false)} />
+      )}
+    </>
   );
 }

@@ -3,12 +3,13 @@
 import { useState, useEffect } from 'react';
 import toast from 'react-hot-toast';
 import { X, Plus, Trash2, Link2, Sparkles } from 'lucide-react';
-import { getAccessoires, lierAccessoire, delierAccessoire } from '../../config/api';
+import { getAccessoires, lierAccessoire, delierAccessoire, getProduits } from '../../config/api';
 
 const fmt = (n) => Number(n || 0).toLocaleString('fr-FR');
 
-export default function AccessoiresModal({ produit, tousLesProduits, onFermer }) {
+export default function AccessoiresModal({ produit, onFermer }) {
   const [accessoires, setAccessoires] = useState([]);
+  const [tousProduits, setTousProduits] = useState([]);
   const [chargement, setChargement]   = useState(true);
   const [choix, setChoix]             = useState('');   // id du produit à lier
   const [remise, setRemise]           = useState(0);
@@ -18,6 +19,9 @@ export default function AccessoiresModal({ produit, tousLesProduits, onFermer })
     setChargement(true);
     const res = await getAccessoires(produit.id);
     if (res.success) setAccessoires(res.data);
+    // Charger TOUS les produits (sans pagination) pour la liste déroulante
+    const resP = await getProduits();
+    if (resP.success) setTousProduits(resP.data);
     setChargement(false);
   };
 
@@ -25,7 +29,7 @@ export default function AccessoiresModal({ produit, tousLesProduits, onFermer })
 
   // Produits disponibles : tous sauf lui-même et ceux déjà liés
   const idsLies = accessoires.map(a => a.id);
-  const disponibles = tousLesProduits.filter(
+  const disponibles = tousProduits.filter(
     p => p.id !== produit.id && !idsLies.includes(p.id)
   );
 

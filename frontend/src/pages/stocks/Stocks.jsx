@@ -3,13 +3,15 @@ import { useState, useEffect } from 'react';
 import { getStocks } from '../../config/api';
 import StockBadge from '../../components/ui/StockBadge';
 import EntreeStockModal from './EntreeStockModal';
+import SortieStockModal from './SortieStockModal';
 
 export default function Stocks() {
   const [stocks, setStocks]         = useState([]);
   const [chargement, setChargement] = useState(true);
   const [recherche, setRecherche]   = useState('');
   const [filtre, setFiltre]         = useState('tous');
-  const [modal, setModal]           = useState(null); // produit sélectionné pour entrée stock
+  const [modal, setModal]           = useState(null);       // entrée stock
+  const [modalSortie, setModalSortie] = useState(null);     // sortie / perte
 
   const charger = async () => {
     setChargement(true);
@@ -81,12 +83,21 @@ export default function Stocks() {
                 <td className='px-4 py-3 text-sm text-gray-600'>{s.seuil_alerte}</td>
                 <td className='px-4 py-3'><StockBadge statut={s.statut} /></td>
                 <td className='px-4 py-3'>
-                  <button
-                    onClick={() => setModal(s)}
-                    className='bg-[#2196F3] hover:bg-blue-700 text-white text-xs
-                               px-3 py-1.5 rounded-lg transition-colors'>
-                    + Entrée stock
-                  </button>
+                  <div className='flex gap-2'>
+                    <button
+                      onClick={() => setModal(s)}
+                      className='bg-[#2196F3] hover:bg-blue-700 text-white text-xs
+                                 px-3 py-1.5 rounded-lg transition-colors'>
+                      + Entrée
+                    </button>
+                    <button
+                      onClick={() => setModalSortie(s)}
+                      disabled={s.quantite <= 0}
+                      className='bg-red-500 hover:bg-red-600 disabled:opacity-40 text-white text-xs
+                                 px-3 py-1.5 rounded-lg transition-colors'>
+                      − Sortie/Perte
+                    </button>
+                  </div>
                 </td>
               </tr>
             ))}
@@ -103,6 +114,15 @@ export default function Stocks() {
           produit={modal}
           onFermer={() => setModal(null)}
           onSuccess={() => { setModal(null); charger(); }}
+        />
+      )}
+
+      {/* Modal de sortie / perte */}
+      {modalSortie && (
+        <SortieStockModal
+          produit={modalSortie}
+          onFermer={() => setModalSortie(null)}
+          onSuccess={() => { setModalSortie(null); charger(); }}
         />
       )}
     </div>
