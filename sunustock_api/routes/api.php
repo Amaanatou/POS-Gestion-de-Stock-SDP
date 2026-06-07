@@ -7,6 +7,8 @@ require_once __DIR__ . '/../controllers/VenteController.php';
 require_once __DIR__ . '/../controllers/DashboardController.php';
 require_once __DIR__ . '/../controllers/ClientController.php';
 require_once __DIR__ . '/../controllers/FournisseurController.php';
+require_once __DIR__ . '/../controllers/UtilisateurController.php';
+require_once __DIR__ . '/../controllers/JournalController.php';
 
 $method   = $_SERVER['REQUEST_METHOD'];
 $uri      = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
@@ -43,6 +45,13 @@ if ($base === 'produits') {
         if ($method === 'GET')    { $c->accessoires($sub);             exit; }
         if ($method === 'POST')   { $c->lierAccessoire($sub);          exit; }
         if ($method === 'DELETE') { $c->delierAccessoire($sub, $accId); exit; }
+    }
+    // Galerie d'images (produit/{id}/images)
+    if (is_numeric($sub) && $subsub === 'images') {
+        $imgId = (int)($segments[4] ?? 0);
+        if ($method === 'GET')    { $c->listerImages($sub);           exit; }
+        if ($method === 'POST')   { $c->ajouterImage($sub);           exit; }
+        if ($method === 'DELETE') { $c->supprimerImage($sub, $imgId); exit; }
     }
     if ($method === 'GET'    && !$sub)            { $c->lister();          exit; }
     if ($method === 'GET'    && $sub === 'barre') { $c->parBarre($subsub); exit; }
@@ -98,6 +107,23 @@ if ($base === 'clients') {
     if ($method === 'GET'  && !$sub)                 { $c->lister();           exit; }
     if ($method === 'GET'  && $sub === 'recherche')  { $c->rechercher($subsub); exit; }
     if ($method === 'POST' && !$sub)                 { $c->creer();            exit; }
+    if ($method === 'PUT'  && is_numeric($sub))      { $c->modifier($sub);     exit; }
+}
+
+// ── JOURNAL D'AUDIT (admin) ──────────────────────────────────
+if ($base === 'journal' && $method === 'GET') {
+    (new JournalController($pdo))->lister();
+    exit;
+}
+
+// ── UTILISATEURS (gestion du personnel — admin) ──────────────
+if ($base === 'utilisateurs') {
+    $c = new UtilisateurController($pdo);
+    if ($method === 'GET'    && !$sub)            { $c->lister();           exit; }
+    if ($method === 'POST'   && !$sub)            { $c->creer();            exit; }
+    if ($method === 'PUT'    && is_numeric($sub)) { $c->modifier($sub);     exit; }
+    if ($method === 'PATCH'  && is_numeric($sub)
+        && $subsub === 'actif')                   { $c->basculerActif($sub); exit; }
 }
 
 // ── FOURNISSEURS ─────────────────────────────────────────────
