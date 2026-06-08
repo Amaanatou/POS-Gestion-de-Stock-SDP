@@ -10,12 +10,15 @@ import {
 // Config visuelle par type d'action
 const ACTIONS = {
   annulation_vente:     { label: 'Annulation vente',    icon: XCircle,          classes: 'bg-red-100 text-red-700' },
+  retour_marchandise:   { label: 'Retour marchandise',  icon: XCircle,          classes: 'bg-orange-100 text-orange-700' },
   modification_prix:    { label: 'Modification prix',   icon: TrendingUp,       classes: 'bg-orange-100 text-orange-700' },
   entree_stock:         { label: 'Entrée stock',        icon: PackagePlus,      classes: 'bg-green-100 text-green-700' },
   perte_casse:          { label: 'Perte / Casse',       icon: PackageMinus,     classes: 'bg-red-100 text-red-700' },
   ajustement_stock:     { label: 'Ajustement stock',    icon: SlidersHorizontal,classes: 'bg-blue-100 text-blue-700' },
   desactivation_compte: { label: 'Désactivation compte',icon: UserX,            classes: 'bg-gray-200 text-gray-700' },
   activation_compte:    { label: 'Activation compte',   icon: UserCheck,        classes: 'bg-green-100 text-green-700' },
+  ouverture_caisse:     { label: 'Ouverture caisse',    icon: UserCheck,        classes: 'bg-green-100 text-green-700' },
+  fermeture_caisse:     { label: 'Fermeture caisse',    icon: SlidersHorizontal,classes: 'bg-blue-100 text-blue-700' },
 };
 
 function ActionBadge({ action }) {

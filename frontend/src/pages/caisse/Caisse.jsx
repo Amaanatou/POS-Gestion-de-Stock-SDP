@@ -7,6 +7,7 @@ import {
   CreditCard, Banknote, X, CheckCircle, Printer, ScanLine, FileText,
 } from 'lucide-react';
 import { genererFacturePDF } from '../../utils/facturePDF';
+import QRCode from 'qrcode';
 import { getProduits, getProduitParBarre, creerVente, getAccessoires } from '../../config/api';
 import BarcodeScanner from '../../components/ui/BarcodeScanner';
 import ClientZone from './ClientZone';
@@ -122,6 +123,13 @@ function Recu({ vente, onFermer }) {
     hour: '2-digit', minute: '2-digit',
   });
 
+  // QR code de retour (contient le n° de vente) — scannable pour traiter un retour
+  const [qrRetour, setQrRetour] = useState('');
+  useEffect(() => {
+    QRCode.toDataURL('RETOUR:' + (vente.numero || ''), { width: 110, margin: 1 })
+      .then(setQrRetour).catch(() => {});
+  }, [vente.numero]);
+
   // Méthode B : prix HT, TVA ajoutée par-dessus
   const TAUX_TVA   = 18;
   const totalHTBrut  = vente.totalHTBrut ?? vente.totalHT;
@@ -208,6 +216,12 @@ function Recu({ vente, onFermer }) {
                 <span>-{fmt(remiseClient)} FCFA</span>
               </div>
             )}
+            {vente.remiseManuelleMontant > 0 && (
+              <div className='flex justify-between text-gray-700 font-medium'>
+                <span>Remise (-{vente.remiseManuelle}%)</span>
+                <span>-{fmt(vente.remiseManuelleMontant)} FCFA</span>
+              </div>
+            )}
             <div className='flex justify-between text-gray-500'>
               <span>TVA ({TAUX_TVA}%)</span>
               <span>{fmt(montantTVA)} FCFA</span>
@@ -251,6 +265,14 @@ function Recu({ vente, onFermer }) {
                   <span>+{vente.client.points_gagnes}</span>
                 </div>
               )}
+            </div>
+          )}
+
+          {/* Code de retour (QR avec le n° de vente) */}
+          {qrRetour && (
+            <div className='border-t border-dashed pt-3 mt-2 flex flex-col items-center'>
+              <img src={qrRetour} alt='Code de retour' className='w-20 h-20' />
+              <p className='text-[10px] text-gray-400 mt-1'>Code de retour — à scanner en cas d'échange</p>
             </div>
           )}
 
@@ -315,15 +337,34 @@ export default function Caisse() {
   const [scannerOuvert, setScannerOuvert] = useState(false);
   const [client, setClient]           = useState(null);  // client fidélité sélectionné
   const [accessoires, setAccessoires] = useState(null);  // { produitNom, liste } | null
+  const [remiseManuelle, setRemiseManuelle] = useState(0); // remise % saisie par le caissier
   const rechercheRef = useRef(null);
 
+  // Seuil de remise sans validation manager (cahier §2.2)
+  const SEUIL_REMISE_CAISSIER = 10;
+  const estCaissier = utilisateur?.role === 'caissier';
+
+  // Chargement initial : seulement les 100 premiers (perf sur gros catalogue)
   useEffect(() => {
-    getProduits().then(res => {
+    getProduits({ page: 1, per_page: 100 }).then(res => {
       if (res.success) setProduits(res.data);
       setChargement(false);
     });
     rechercheRef.current?.focus();
   }, []);
+
+  // Recherche CÔTÉ SERVEUR (débouncée 300ms) — tient sur 50 000+ références
+  useEffect(() => {
+    const t = setTimeout(() => {
+      const params = recherche.trim()
+        ? { search: recherche.trim(), page: 1, per_page: 50 }
+        : { page: 1, per_page: 100 };
+      getProduits(params).then(res => {
+        if (res.success) setProduits(res.data);
+      });
+    }, 300);
+    return () => clearTimeout(t);
+  }, [recherche]);
 
   // ── Recherche scan code-barres ────────────────────────────
   const scannerCodeBarre = async (code) => {
@@ -429,8 +470,13 @@ export default function Caisse() {
   const totalHTBrut  = panier.reduce(
     (sum, l) => sum + (l.produit.prix_vente || 0) * l.quantite, 0
   );
-  const remiseClient = Math.round(totalHTBrut * tauxRemise / 100);
-  const totalHT      = totalHTBrut - remiseClient;       // HT après remise
+  const remiseClient   = Math.round(totalHTBrut * tauxRemise / 100);
+  // Remise manuelle (plafonnée à 10% si caissier)
+  const remiseManuelleAppliquee = estCaissier
+    ? Math.min(remiseManuelle, SEUIL_REMISE_CAISSIER)
+    : remiseManuelle;
+  const remiseManuelleMontant = Math.round(totalHTBrut * remiseManuelleAppliquee / 100);
+  const totalHT      = totalHTBrut - remiseClient - remiseManuelleMontant; // HT après remises
   const totalTVA     = Math.round(totalHT * TAUX_TVA / 100);
   const totalTTC     = totalHT + totalTVA;
 
@@ -443,7 +489,7 @@ export default function Caisse() {
       prix_vente: l.produit.prix_vente,
     }));
 
-    const res = await creerVente(lignes, modePaiement, client?.id || null);
+    const res = await creerVente(lignes, modePaiement, client?.id || null, remiseManuelleAppliquee);
     setModalPaiement(false);
 
     if (res.success) {
@@ -452,6 +498,8 @@ export default function Caisse() {
         totalHTBrut,
         remiseClient,
         tauxRemise,
+        remiseManuelle: remiseManuelleAppliquee,
+        remiseManuelleMontant,
         totalHT,
         totalTVA,
         totalTTC,
@@ -465,6 +513,7 @@ export default function Caisse() {
       });
       viderPanier();
       setClient(null);   // réinitialiser le client pour la prochaine vente
+      setRemiseManuelle(0);
       toast.success(
         res.points_gagnes
           ? `Vente enregistrée ! +${res.points_gagnes} points`
@@ -475,11 +524,8 @@ export default function Caisse() {
     }
   };
 
-  // ── Produits filtrés ──────────────────────────────────────
-  const produitsFiltres = produits.filter(p =>
-    p.nom.toLowerCase().includes(recherche.toLowerCase()) ||
-    (p.code_barre || '').includes(recherche)
-  );
+  // La recherche est faite côté SERVEUR → on affiche directement les résultats
+  const produitsFiltres = produits;
 
   return (
     <div className='flex flex-col lg:flex-row gap-4 h-[calc(100vh-140px)]'>
@@ -498,10 +544,21 @@ export default function Caisse() {
               value={recherche}
               onChange={e => setRecherche(e.target.value)}
               onKeyDown={handleRechercheKeyDown}
-              className='w-full pl-9 pr-4 py-3 border border-gray-300 rounded-xl
+              className='w-full pl-9 pr-10 py-3 border border-gray-300 rounded-xl
                          focus:outline-none focus:ring-2 focus:ring-[#2196F3]
                          text-gray-800 bg-white shadow-sm'
             />
+            {/* Bouton effacer (croix) — visible seulement si du texte est saisi */}
+            {recherche && (
+              <button
+                onClick={() => { setRecherche(''); rechercheRef.current?.focus(); }}
+                title='Effacer la recherche'
+                className='absolute right-3 top-3 text-gray-400 hover:text-gray-700
+                           transition-colors'
+              >
+                <X size={18} />
+              </button>
+            )}
           </div>
           {/* Bouton ouvrir la caméra */}
           <button
@@ -666,6 +723,31 @@ export default function Caisse() {
               <span>Remise {client.statut === 'or' ? 'Or' : 'VIP'} (-{tauxRemise}%)</span>
               <span>-{remiseClient.toLocaleString('fr-FR')} FCFA</span>
             </div>
+          )}
+          {/* Remise manuelle (caissier plafonné à 10%) */}
+          {panier.length > 0 && (
+            <div className='flex items-center justify-between text-sm'>
+              <span className='text-gray-500 flex items-center gap-1'>
+                Remise manuelle
+                <input
+                  type='number' min='0' max={estCaissier ? SEUIL_REMISE_CAISSIER : 100}
+                  value={remiseManuelle}
+                  onChange={e => setRemiseManuelle(Math.max(0, Number(e.target.value)))}
+                  className='w-14 border border-gray-300 rounded px-1.5 py-0.5 text-center text-sm
+                             focus:outline-none focus:ring-2 focus:ring-[#2196F3]'
+                />
+                <span className='text-gray-400'>%</span>
+              </span>
+              <span className='text-[#FF6B35] font-medium'>
+                -{remiseManuelleMontant.toLocaleString('fr-FR')} FCFA
+              </span>
+            </div>
+          )}
+          {/* Avertissement seuil caissier */}
+          {estCaissier && remiseManuelle > SEUIL_REMISE_CAISSIER && (
+            <p className='text-xs text-red-500'>
+              ⚠ Remise &gt; {SEUIL_REMISE_CAISSIER}% : validation manager requise (plafonnée à {SEUIL_REMISE_CAISSIER}%)
+            </p>
           )}
           <div className='flex justify-between text-sm text-gray-500'>
             <span>TVA ({TAUX_TVA}%)</span>

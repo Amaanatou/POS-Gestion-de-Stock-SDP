@@ -377,22 +377,7 @@ export default function Produits() {
                          hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed'>
               ← Précédent
             </button>
-            {/* Numéros de page */}
-            {Array.from({ length: totalPages }, (_, i) => i + 1)
-              .filter(n => n === 1 || n === totalPages || Math.abs(n - page) <= 1)
-              .map((n, idx, arr) => (
-                <span key={n} className='flex'>
-                  {idx > 0 && arr[idx - 1] !== n - 1 && (
-                    <span className='px-2 py-1.5 text-gray-400'>…</span>
-                  )}
-                  <button
-                    onClick={() => setPage(n)}
-                    className={`w-9 py-1.5 rounded-lg text-sm font-medium transition-colors
-                      ${n === page ? 'bg-[#1E3A5F] text-white' : 'border text-gray-600 hover:bg-gray-50'}`}>
-                    {n}
-                  </button>
-                </span>
-              ))}
+            <span className='px-3 py-1.5 text-sm font-medium text-gray-700'>{page}</span>
             <button
               onClick={() => setPage(p => Math.min(totalPages, p + 1))}
               disabled={page === totalPages}

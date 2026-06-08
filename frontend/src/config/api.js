@@ -108,8 +108,10 @@ export const supprimerImageProduit = (produitId, imageId) =>
   });
 
 // ─── STOCKS ──────────────────────────────────────────────────
-export const getStocks = () =>
-  request('/stocks', { headers: headers() });
+export const getStocks = (params = {}) => {
+  const qs = new URLSearchParams(params).toString();
+  return request(`/stocks${qs ? '?' + qs : ''}`, { headers: headers() });
+};
 
 export const entreeStock = (produit_id, quantite, motif) =>
   request('/stocks/entree', {
@@ -136,10 +138,13 @@ export const marquerAlerteLue = (id) =>
   });
 
 // ─── VENTES (CAISSE POS) ─────────────────────────────────────
-export const creerVente = (lignes, modePaiement, clientId = null) =>
+export const creerVente = (lignes, modePaiement, clientId = null, remiseManuelle = 0) =>
   request('/ventes', {
     method: 'POST', headers: headers(),
-    body: JSON.stringify({ lignes, mode_paiement: modePaiement, client_id: clientId }),
+    body: JSON.stringify({
+      lignes, mode_paiement: modePaiement, client_id: clientId,
+      remise_manuelle: remiseManuelle,
+    }),
   });
 
 // Historique des ventes (manager/admin)
@@ -154,6 +159,13 @@ export const getVenteDetails = (id) =>
 export const annulerVente = (id) =>
   request(`/ventes/${id}/annuler`, {
     method: 'POST', headers: headers(),
+  });
+
+// Retour de marchandises (restaure le stock des articles retournés)
+export const retournerVente = (id, articles) =>
+  request(`/ventes/${id}/retour`, {
+    method: 'POST', headers: headers(),
+    body: JSON.stringify({ articles }),
   });
 
 // ─── CLIENTS (FIDÉLITÉ) ──────────────────────────────────────
@@ -173,6 +185,12 @@ export const modifierClient = (id, data) =>
   request(`/clients/${id}`, {
     method: 'PUT', headers: headers(),
     body: JSON.stringify(data),
+  });
+
+export const convertirPoints = (id, points) =>
+  request(`/clients/${id}/convertir`, {
+    method: 'POST', headers: headers(),
+    body: JSON.stringify({ points }),
   });
 
 // ─── FOURNISSEURS ────────────────────────────────────────────
@@ -220,6 +238,25 @@ export const basculerUtilisateur = (id) =>
 // ─── JOURNAL D'AUDIT (ADMIN) ─────────────────────────────────
 export const getJournal = (action = '') =>
   request(`/journal${action ? '?action=' + action : ''}`, { headers: headers() });
+
+// ─── SESSIONS DE CAISSE (écarts) ─────────────────────────────
+export const getSessionCourante = () =>
+  request('/caisse-sessions/courante', { headers: headers() });
+
+export const getSessionsCaisse = () =>
+  request('/caisse-sessions', { headers: headers() });
+
+export const ouvrirCaisse = (fondInitial) =>
+  request('/caisse-sessions/ouvrir', {
+    method: 'POST', headers: headers(),
+    body: JSON.stringify({ fond_initial: fondInitial }),
+  });
+
+export const fermerCaisse = (id, montantCompte, note = '') =>
+  request(`/caisse-sessions/${id}/fermer`, {
+    method: 'POST', headers: headers(),
+    body: JSON.stringify({ montant_compte: montantCompte, note }),
+  });
 
 // ─── DASHBOARD ───────────────────────────────────────────────
 export const getDashboardStats = () =>
