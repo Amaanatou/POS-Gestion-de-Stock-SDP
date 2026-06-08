@@ -33,7 +33,11 @@ class ProduitController {
                    WHERE p.actif = 1';
         $params = [];
 
-        if ($search) { $sql .= ' AND p.nom LIKE ?';      $params[] = "%$search%"; }
+        if ($search) {
+            $sql .= ' AND (p.nom LIKE ? OR p.code_barre LIKE ?)';
+            $params[] = "%$search%";
+            $params[] = "$search%";   // préfixe sur le code-barres (utilise l'index)
+        }
         if ($cat)    { $sql .= ' AND c.nom = ?';          $params[] = $cat; }
         if ($statut === 'rupture')  $sql .= ' AND s.quantite = 0';
         if ($statut === 'critique') $sql .= ' AND s.quantite > 0 AND s.quantite <= p.seuil_alerte';

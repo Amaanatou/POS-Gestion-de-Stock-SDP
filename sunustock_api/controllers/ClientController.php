@@ -100,4 +100,52 @@ class ClientController {
         )->execute([$nom, $tel, $d['statut'] ?? 'standard', $id]);
         echo json_encode(['success' => true, 'message' => 'Client modifié']);
     }
+
+    // Convertir des points en bon d'achat (manager/admin)
+    // Barème : 1 point = 5 FCFA. Minimum 100 points.
+    public function convertirPoints(int $id): void {
+        $user = auth();
+        autoriser(['manager', 'admin'], $user);
+        $d      = json_decode(file_get_contents('php://input'), true);
+        $points = (int)($d['points'] ?? 0);
+
+        if ($points < 100) {
+            http_response_code(400);
+            echo json_encode(['success' => false, 'message' => 'Minimum 100 points pour un bon d\'achat']);
+            return;
+        }
+
+        $this->pdo->beginTransaction();
+        try {
+            // Verrou + vérification du solde
+            $s = $this->pdo->prepare('SELECT nom, points FROM clients WHERE id = ? FOR UPDATE');
+            $s->execute([$id]);
+            $client = $s->fetch();
+            if (!$client) throw new Exception('Client introuvable');
+            if ($client['points'] < $points) throw new Exception('Solde de points insuffisant');
+
+            // Déduire les points
+            $this->pdo->prepare('UPDATE clients SET points = points - ? WHERE id = ?')
+                      ->execute([$points, $id]);
+
+            $valeur = $points * 5;  // 1 point = 5 FCFA
+            $codeBon = 'BON-' . strtoupper(bin2hex(random_bytes(4)));
+
+            $this->pdo->commit();
+            echo json_encode([
+                'success' => true,
+                'data'    => [
+                    'code'         => $codeBon,
+                    'client'       => $client['nom'],
+                    'points_utilises' => $points,
+                    'valeur'       => $valeur,
+                    'points_restants' => $client['points'] - $points,
+                ],
+            ]);
+        } catch (Exception $e) {
+            $this->pdo->rollBack();
+            http_response_code(400);
+            echo json_encode(['success' => false, 'message' => $e->getMessage()]);
+        }
+    }
 }

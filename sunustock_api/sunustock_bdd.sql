@@ -166,6 +166,21 @@ CREATE TABLE journal_actions (
     INDEX idx_journal_date (created_at)
 );
 
+-- Sessions de caisse : ouverture/fermeture + écarts (§2.2)
+CREATE TABLE sessions_caisse (
+    id              INT AUTO_INCREMENT PRIMARY KEY,
+    utilisateur_id  INT NOT NULL,
+    fond_initial    DECIMAL(12,2) NOT NULL DEFAULT 0,
+    montant_attendu DECIMAL(12,2),
+    montant_compte  DECIMAL(12,2),
+    ecart           DECIMAL(12,2),
+    note            VARCHAR(255),
+    statut          ENUM('ouverte','fermee') DEFAULT 'ouverte',
+    opened_at       TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    closed_at       TIMESTAMP NULL,
+    FOREIGN KEY (utilisateur_id) REFERENCES utilisateurs(id) ON DELETE CASCADE
+);
+
 -- ============================================================
 -- DONNÉES ENRICHIES
 -- ============================================================
