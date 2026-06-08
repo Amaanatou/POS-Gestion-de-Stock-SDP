@@ -10,6 +10,11 @@ class VenteController {
         $lignes   = $d['lignes']        ?? [];
         $mode     = $d['mode_paiement'] ?? 'especes';
         $clientId = $d['client_id']     ?? null;   // client fidélité (optionnel)
+        // Remise manuelle (%) — SÉCURITÉ : un caissier est plafonné à 10% (§2.2)
+        $remiseManuelle = max(0, (float)($d['remise_manuelle'] ?? 0));
+        if ($user['role'] === 'caissier' && $remiseManuelle > 10) {
+            $remiseManuelle = 10;
+        }
 
         if (empty($lignes)) {
             http_response_code(400);
@@ -38,9 +43,10 @@ class VenteController {
                 };
             }
             $remiseClient = round($totalHTBrut * $tauxRemise / 100);
+            $remiseMan    = round($totalHTBrut * $remiseManuelle / 100);
 
-            // La TVA se calcule sur le HT APRÈS remise (comptabilité correcte)
-            $totalHT  = $totalHTBrut - $remiseClient;
+            // La TVA se calcule sur le HT APRÈS remises (comptabilité correcte)
+            $totalHT  = $totalHTBrut - $remiseClient - $remiseMan;
             $totalTVA = round($totalHT * 18 / 100);
             $totalTTC = $totalHT + $totalTVA;
             // Numéro unique : date + 8 caractères aléatoires (anti-collision)
@@ -272,6 +278,77 @@ class VenteController {
         } catch (Exception $e) {
             $this->pdo->rollBack();
             http_response_code(500);
+            echo json_encode(['success' => false, 'message' => $e->getMessage()]);
+        }
+    }
+
+    // Retour de marchandises : restaure le stock des articles retournés — manager/admin
+    // Body : { articles: [ { produit_id, quantite } ] }
+    public function retour(int $id): void {
+        $user = auth();
+        autoriser(['manager', 'admin'], $user);
+        $d        = json_decode(file_get_contents('php://input'), true);
+        $articles = $d['articles'] ?? [];
+
+        if (empty($articles)) {
+            http_response_code(400);
+            echo json_encode(['success' => false, 'message' => 'Aucun article à retourner']);
+            return;
+        }
+
+        $this->pdo->beginTransaction();
+        try {
+            $sv = $this->pdo->prepare('SELECT numero FROM ventes WHERE id = ?');
+            $sv->execute([$id]);
+            $numero = $sv->fetchColumn();
+            if (!$numero) throw new Exception('Vente introuvable');
+
+            $totalRembourse = 0;
+            foreach ($articles as $a) {
+                $pid = (int)($a['produit_id'] ?? 0);
+                $qte = (int)($a['quantite']   ?? 0);
+                if (!$pid || $qte <= 0) continue;
+
+                // Vérifier que la quantité retournée ne dépasse pas la quantité vendue
+                $sl = $this->pdo->prepare(
+                    'SELECT quantite, prix_unitaire FROM lignes_ventes WHERE vente_id = ? AND produit_id = ?'
+                );
+                $sl->execute([$id, $pid]);
+                $ligne = $sl->fetch();
+                if (!$ligne || $qte > $ligne['quantite']) {
+                    throw new Exception('Quantité retournée invalide pour le produit ' . $pid);
+                }
+
+                // Restaurer le stock
+                $sq = $this->pdo->prepare('SELECT quantite FROM stocks WHERE produit_id = ? FOR UPDATE');
+                $sq->execute([$pid]);
+                $avant = (int)$sq->fetchColumn();
+                $apres = $avant + $qte;
+                $this->pdo->prepare('UPDATE stocks SET quantite = ? WHERE produit_id = ?')
+                          ->execute([$apres, $pid]);
+
+                $this->pdo->prepare(
+                    'INSERT INTO mouvements_stock
+                     (produit_id, type_mouvement, quantite, quantite_avant, quantite_apres, motif, utilisateur_id)
+                     VALUES (?, "retour", ?, ?, ?, ?, ?)'
+                )->execute([$pid, $qte, $avant, $apres, 'Retour vente ' . $numero, $user['id']]);
+
+                $totalRembourse += $ligne['prix_unitaire'] * $qte;
+            }
+
+            journaliser($this->pdo, $user['id'], 'retour_marchandise',
+                'Vente ' . $numero,
+                'Remboursé : ' . round($totalRembourse) . ' FCFA HT');
+
+            $this->pdo->commit();
+            echo json_encode([
+                'success'         => true,
+                'message'         => 'Retour enregistré, stock restauré',
+                'total_rembourse' => round($totalRembourse),
+            ]);
+        } catch (Exception $e) {
+            $this->pdo->rollBack();
+            http_response_code(400);
             echo json_encode(['success' => false, 'message' => $e->getMessage()]);
         }
     }

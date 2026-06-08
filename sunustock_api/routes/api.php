@@ -9,6 +9,7 @@ require_once __DIR__ . '/../controllers/ClientController.php';
 require_once __DIR__ . '/../controllers/FournisseurController.php';
 require_once __DIR__ . '/../controllers/UtilisateurController.php';
 require_once __DIR__ . '/../controllers/JournalController.php';
+require_once __DIR__ . '/../controllers/SessionCaisseController.php';
 
 $method   = $_SERVER['REQUEST_METHOD'];
 $uri      = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
@@ -93,6 +94,7 @@ if ($base === 'ventes') {
     if ($method === 'GET'  && is_numeric($sub) && $subsub === 'recu')    { $c->recu($sub);     exit; }
     if ($method === 'GET'  && is_numeric($sub) && !$subsub)              { $c->details($sub);  exit; }
     if ($method === 'POST' && is_numeric($sub) && $subsub === 'annuler') { $c->annuler($sub);  exit; }
+    if ($method === 'POST' && is_numeric($sub) && $subsub === 'retour')  { $c->retour($sub);   exit; }
 }
 
 // ── DASHBOARD ────────────────────────────────────────────────
@@ -108,12 +110,24 @@ if ($base === 'clients') {
     if ($method === 'GET'  && $sub === 'recherche')  { $c->rechercher($subsub); exit; }
     if ($method === 'POST' && !$sub)                 { $c->creer();            exit; }
     if ($method === 'PUT'  && is_numeric($sub))      { $c->modifier($sub);     exit; }
+    if ($method === 'POST' && is_numeric($sub)
+        && $subsub === 'convertir')                  { $c->convertirPoints($sub); exit; }
 }
 
 // ── JOURNAL D'AUDIT (admin) ──────────────────────────────────
 if ($base === 'journal' && $method === 'GET') {
     (new JournalController($pdo))->lister();
     exit;
+}
+
+// ── SESSIONS DE CAISSE (écarts) ──────────────────────────────
+if ($base === 'caisse-sessions') {
+    $c = new SessionCaisseController($pdo);
+    if ($method === 'GET'  && $sub === 'courante')         { $c->courante();   exit; }
+    if ($method === 'GET'  && !$sub)                        { $c->lister();     exit; }
+    if ($method === 'POST' && $sub === 'ouvrir')           { $c->ouvrir();     exit; }
+    if ($method === 'POST' && is_numeric($sub)
+        && $subsub === 'fermer')                           { $c->fermer($sub); exit; }
 }
 
 // ── UTILISATEURS (gestion du personnel — admin) ──────────────
