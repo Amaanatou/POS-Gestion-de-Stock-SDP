@@ -2,7 +2,7 @@
 import { NavLink } from 'react-router-dom';
 import {
   LayoutDashboard, Package, BarChart3,
-  Bell, ShoppingCart, ArrowLeftRight, LogOut, Receipt, Truck, UserCog, ShieldAlert, Users
+  Bell, ShoppingCart, ArrowLeftRight, LogOut, Receipt, Truck, UserCog, ShieldAlert, Users, Wallet
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import Logo from '../ui/Logo';
@@ -15,6 +15,7 @@ const TOUS_LES_MENUS = [
   { to: '/mouvements', label: 'Mouvements',       icon: ArrowLeftRight,  roles: ['admin','manager'] },
   { to: '/alertes',    label: 'Alertes',          icon: Bell,            roles: ['admin','manager'] },
   { to: '/caisse',     label: 'Caisse POS',       icon: ShoppingCart,    roles: ['admin','manager','caissier'] },
+  { to: '/sessions-caisse', label: 'Ouverture caisse', icon: Wallet,     roles: ['admin','manager'] },
   { to: '/ventes',     label: 'Historique ventes',icon: Receipt,         roles: ['admin','manager'] },
   { to: '/fournisseurs',label:'Fournisseurs',     icon: Truck,           roles: ['admin','manager'] },
   { to: '/clients',     label:'Clients',          icon: Users,           roles: ['admin','manager'] },

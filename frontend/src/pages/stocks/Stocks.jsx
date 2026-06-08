@@ -12,21 +12,39 @@ export default function Stocks() {
   const [filtre, setFiltre]         = useState('tous');
   const [modal, setModal]           = useState(null);       // entrée stock
   const [modalSortie, setModalSortie] = useState(null);     // sortie / perte
+  const [page, setPage]             = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [total, setTotal]           = useState(0);
+  const PER_PAGE = 15;
 
   const charger = async () => {
     setChargement(true);
-    const res = await getStocks();
-    if (res.success) setStocks(res.data);
+    const params = { page, per_page: PER_PAGE };
+    if (recherche)         params.search = recherche;
+    if (filtre !== 'tous') params.statut = filtre;
+    const res = await getStocks(params);
+    if (res.success) {
+      setStocks(res.data);
+      setTotalPages(res.total_pages || 1);
+      setTotal(res.total || res.data.length);
+    }
     setChargement(false);
   };
 
-  useEffect(() => { charger(); }, []);
+  // Recharger quand la page change
+  useEffect(() => { charger(); }, [page]);
 
-  const filtres = stocks.filter(s => {
-    const ok1 = s.nom.toLowerCase().includes(recherche.toLowerCase());
-    const ok2 = filtre === 'tous' || s.statut === filtre;
-    return ok1 && ok2;
-  });
+  // Recherche/filtre (debounce 300ms) → retour page 1
+  useEffect(() => {
+    const t = setTimeout(() => {
+      if (page === 1) charger();
+      else setPage(1);
+    }, 300);
+    return () => clearTimeout(t);
+  }, [recherche, filtre]);
+
+  // Le serveur filtre déjà → affichage direct
+  const filtres = stocks;
 
   if (chargement) return (
     <div className='flex items-center justify-center h-64'>
@@ -105,6 +123,28 @@ export default function Stocks() {
         </table>
         {filtres.length === 0 && (
           <div className='text-center py-12 text-gray-500'>Aucun produit trouvé</div>
+        )}
+      </div>
+
+      {/* Pagination serveur */}
+      <div className='flex items-center justify-between mt-4'>
+        <p className='text-xs text-gray-400'>
+          {total.toLocaleString('fr-FR')} produit{total > 1 ? 's' : ''} — page {page} / {totalPages}
+        </p>
+        {totalPages > 1 && (
+          <div className='flex items-center gap-1'>
+            <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}
+              className='px-3 py-1.5 rounded-lg border text-sm text-gray-600
+                         hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed'>
+              ← Précédent
+            </button>
+            <span className='px-3 py-1.5 text-sm font-medium text-gray-700'>{page}</span>
+            <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages}
+              className='px-3 py-1.5 rounded-lg border text-sm text-gray-600
+                         hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed'>
+              Suivant →
+            </button>
+          </div>
         )}
       </div>
 

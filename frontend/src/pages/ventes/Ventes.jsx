@@ -2,8 +2,8 @@
 // Historique des ventes + annulation (manager/admin)
 import { useState, useEffect } from 'react';
 import toast from 'react-hot-toast';
-import { Search, Eye, XCircle, Receipt, Ban, CheckCircle2 } from 'lucide-react';
-import { getVentes, getVenteDetails, annulerVente } from '../../config/api';
+import { Search, Eye, XCircle, Receipt, Ban, CheckCircle2, Undo2 } from 'lucide-react';
+import { getVentes, getVenteDetails, annulerVente, retournerVente } from '../../config/api';
 
 const fmt = (n) => Number(n || 0).toLocaleString('fr-FR');
 
@@ -24,6 +24,9 @@ function DetailsModal({ venteId, onFermer, onAnnulee }) {
   const [chargement, setChargement] = useState(true);
   const [annulation, setAnnulation] = useState(false);
   const [confirme, setConfirme]     = useState(false);
+  const [modeRetour, setModeRetour] = useState(false);
+  const [retours, setRetours]       = useState({}); // produit_id -> quantité à retourner
+  const [retourEnCours, setRetourEnCours] = useState(false);
 
   useEffect(() => {
     getVenteDetails(venteId).then(res => {
@@ -31,6 +34,22 @@ function DetailsModal({ venteId, onFermer, onAnnulee }) {
       setChargement(false);
     });
   }, [venteId]);
+
+  const traiterRetour = async () => {
+    const articles = Object.entries(retours)
+      .filter(([, q]) => q > 0)
+      .map(([produit_id, quantite]) => ({ produit_id: Number(produit_id), quantite }));
+    if (articles.length === 0) { toast.error('Sélectionne au moins un article'); return; }
+    setRetourEnCours(true);
+    const res = await retournerVente(venteId, articles);
+    setRetourEnCours(false);
+    if (res.success) {
+      toast.success(`Retour enregistré — ${fmt(res.total_rembourse)} FCFA HT à rembourser`);
+      onAnnulee(); // recharge la liste + ferme
+    } else {
+      toast.error(res.message || 'Erreur lors du retour');
+    }
+  };
 
   const annuler = async () => {
     setAnnulation(true);
@@ -105,7 +124,9 @@ function DetailsModal({ venteId, onFermer, onAnnulee }) {
                   <tr>
                     <th className='px-3 py-2 text-left'>Article</th>
                     <th className='px-3 py-2 text-center'>Qté</th>
-                    <th className='px-3 py-2 text-right'>Total</th>
+                    {modeRetour
+                      ? <th className='px-3 py-2 text-center'>À retourner</th>
+                      : <th className='px-3 py-2 text-right'>Total</th>}
                   </tr>
                 </thead>
                 <tbody className='divide-y'>
@@ -113,7 +134,20 @@ function DetailsModal({ venteId, onFermer, onAnnulee }) {
                     <tr key={l.id}>
                       <td className='px-3 py-2 text-gray-700'>{l.nom_produit}</td>
                       <td className='px-3 py-2 text-center text-gray-500'>{l.quantite}</td>
-                      <td className='px-3 py-2 text-right font-medium'>{fmt(l.sous_total)} F</td>
+                      {modeRetour ? (
+                        <td className='px-3 py-2 text-center'>
+                          <input type='number' min='0' max={l.quantite}
+                            value={retours[l.produit_id] || 0}
+                            onChange={e => setRetours(r => ({
+                              ...r,
+                              [l.produit_id]: Math.min(l.quantite, Math.max(0, Number(e.target.value))),
+                            }))}
+                            className='w-16 border border-gray-300 rounded px-2 py-1 text-center
+                                       focus:outline-none focus:ring-2 focus:ring-[#2196F3]' />
+                        </td>
+                      ) : (
+                        <td className='px-3 py-2 text-right font-medium'>{fmt(l.sous_total)} F</td>
+                      )}
                     </tr>
                   ))}
                 </tbody>
@@ -137,32 +171,60 @@ function DetailsModal({ venteId, onFermer, onAnnulee }) {
               </div>
             </div>
 
-            {/* Bouton annulation */}
-            {!annulee && (
-              !confirme ? (
-                <button onClick={() => setConfirme(true)}
-                  className='w-full flex items-center justify-center gap-2 border border-red-300
-                             text-red-600 font-medium py-2.5 rounded-xl hover:bg-red-50 transition-colors'>
-                  <Ban size={16} /> Annuler cette vente
+            {/* Actions (vente non annulée) */}
+            {!annulee && !confirme && !modeRetour && (
+              <div className='flex gap-2'>
+                <button onClick={() => setModeRetour(true)}
+                  className='flex-1 flex items-center justify-center gap-2 border border-[#FF6B35]
+                             text-[#FF6B35] font-medium py-2.5 rounded-xl hover:bg-orange-50 transition-colors'>
+                  <Undo2 size={16} /> Retour articles
                 </button>
-              ) : (
-                <div className='bg-red-50 border border-red-200 rounded-xl p-3 space-y-2'>
-                  <p className='text-sm text-red-700 font-medium text-center'>
-                    Confirmer l'annulation ? Le stock sera restauré.
-                  </p>
-                  <div className='flex gap-2'>
-                    <button onClick={() => setConfirme(false)}
-                      className='flex-1 border border-gray-300 text-gray-600 py-2 rounded-lg text-sm hover:bg-white'>
-                      Non
-                    </button>
-                    <button onClick={annuler} disabled={annulation}
-                      className='flex-1 bg-red-600 hover:bg-red-700 disabled:opacity-50
-                                 text-white font-medium py-2 rounded-lg text-sm'>
-                      {annulation ? '...' : 'Oui, annuler'}
-                    </button>
-                  </div>
+                <button onClick={() => setConfirme(true)}
+                  className='flex-1 flex items-center justify-center gap-2 border border-red-300
+                             text-red-600 font-medium py-2.5 rounded-xl hover:bg-red-50 transition-colors'>
+                  <Ban size={16} /> Annuler
+                </button>
+              </div>
+            )}
+
+            {/* Mode retour : confirmation */}
+            {modeRetour && (
+              <div className='bg-orange-50 border border-orange-200 rounded-xl p-3 space-y-2'>
+                <p className='text-sm text-orange-700 font-medium text-center'>
+                  Indique les quantités retournées ci-dessus, puis confirme.
+                </p>
+                <div className='flex gap-2'>
+                  <button onClick={() => { setModeRetour(false); setRetours({}); }}
+                    className='flex-1 border border-gray-300 text-gray-600 py-2 rounded-lg text-sm hover:bg-white'>
+                    Annuler
+                  </button>
+                  <button onClick={traiterRetour} disabled={retourEnCours}
+                    className='flex-1 bg-[#FF6B35] hover:bg-orange-600 disabled:opacity-50
+                               text-white font-medium py-2 rounded-lg text-sm'>
+                    {retourEnCours ? '...' : 'Valider le retour'}
+                  </button>
                 </div>
-              )
+              </div>
+            )}
+
+            {/* Confirmation annulation */}
+            {!annulee && confirme && (
+              <div className='bg-red-50 border border-red-200 rounded-xl p-3 space-y-2'>
+                <p className='text-sm text-red-700 font-medium text-center'>
+                  Confirmer l'annulation ? Le stock sera restauré.
+                </p>
+                <div className='flex gap-2'>
+                  <button onClick={() => setConfirme(false)}
+                    className='flex-1 border border-gray-300 text-gray-600 py-2 rounded-lg text-sm hover:bg-white'>
+                    Non
+                  </button>
+                  <button onClick={annuler} disabled={annulation}
+                    className='flex-1 bg-red-600 hover:bg-red-700 disabled:opacity-50
+                               text-white font-medium py-2 rounded-lg text-sm'>
+                    {annulation ? '...' : 'Oui, annuler'}
+                  </button>
+                </div>
+              </div>
             )}
           </div>
         )}

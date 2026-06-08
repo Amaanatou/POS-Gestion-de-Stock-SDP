@@ -4,8 +4,8 @@ import { useState, useEffect, useRef } from 'react';
 import { useForm } from 'react-hook-form';
 import toast from 'react-hot-toast';
 import QRCode from 'qrcode';
-import { Plus, Pencil, Search, X, QrCode, Printer, Star, Crown, User } from 'lucide-react';
-import { getClients, creerClient, modifierClient } from '../../config/api';
+import { Plus, Pencil, Search, X, QrCode, Printer, Star, Crown, User, Gift } from 'lucide-react';
+import { getClients, creerClient, modifierClient, convertirPoints } from '../../config/api';
 
 // Préfixe encodé dans le QR pour identifier un client SunuStock
 export const QR_PREFIXE = 'SUNUCLIENT:';
@@ -77,6 +77,107 @@ function QRModal({ client, onFermer }) {
             <Printer size={16} /> Imprimer la carte
           </button>
         </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Modal Conversion points → bon d'achat ─────────────────────
+function ConversionModal({ client, onFermer, onSuccess }) {
+  const [points, setPoints]   = useState(Math.min(client.points, 100));
+  const [loading, setLoading] = useState(false);
+  const [bon, setBon]         = useState(null);  // bon généré
+
+  const convertir = async () => {
+    if (points < 100) { toast.error('Minimum 100 points'); return; }
+    if (points > client.points) { toast.error('Solde insuffisant'); return; }
+    setLoading(true);
+    const res = await convertirPoints(client.id, Number(points));
+    setLoading(false);
+    if (res.success) {
+      setBon(res.data);
+      toast.success('Bon d\'achat généré !');
+      onSuccess();
+    } else {
+      toast.error(res.message || 'Erreur');
+    }
+  };
+
+  const imprimer = () => {
+    const w = window.open('', '_blank');
+    w.document.write(`
+      <html><head><title>Bon d'achat — ${bon.client}</title></head>
+      <body style="font-family:sans-serif;text-align:center;padding:40px">
+        <h2 style="color:#1E3A5F">SunuStock — Bon d'achat</h2>
+        <div style="border:2px dashed #FF6B35;border-radius:12px;padding:24px;max-width:340px;margin:20px auto">
+          <p style="font-size:13px;color:#888">Code du bon</p>
+          <p style="font-size:26px;font-weight:bold;letter-spacing:2px;color:#1E3A5F">${bon.code}</p>
+          <p style="font-size:34px;font-weight:bold;color:#FF6B35;margin:14px 0">${bon.valeur.toLocaleString('fr-FR')} FCFA</p>
+          <p style="font-size:13px">Client : <b>${bon.client}</b></p>
+          <p style="font-size:12px;color:#888">${bon.points_utilises} points utilisés</p>
+        </div>
+        <p style="font-size:11px;color:#888">Valable en caisse — non remboursable en espèces</p>
+      </body></html>`);
+    w.document.close();
+    w.print();
+  };
+
+  return (
+    <div className='fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4'>
+      <div className='bg-white rounded-2xl shadow-2xl w-full max-w-sm'>
+        <div className='flex items-center justify-between p-5 border-b'>
+          <div className='flex items-center gap-2'>
+            <Gift size={18} className='text-[#FF6B35]' />
+            <h2 className='text-lg font-bold text-gray-800'>Bon d'achat fidélité</h2>
+          </div>
+          <button onClick={onFermer} className='text-gray-400 hover:text-gray-600'>
+            <X size={22} />
+          </button>
+        </div>
+
+        {!bon ? (
+          <div className='p-5 space-y-4'>
+            <div className='bg-blue-50 rounded-lg p-3 text-sm flex justify-between'>
+              <span className='text-gray-600'>Points de {client.nom}</span>
+              <span className='font-bold text-[#FF6B35]'>{client.points} pts</span>
+            </div>
+            <div>
+              <label className='block text-sm font-medium text-gray-700 mb-1'>
+                Points à convertir <span className='text-gray-400'>(1 point = 5 FCFA)</span>
+              </label>
+              <input type='number' min='100' max={client.points} step='50'
+                value={points} onChange={e => setPoints(Number(e.target.value))}
+                className='w-full border border-gray-300 rounded-lg px-4 py-2.5
+                           focus:outline-none focus:ring-2 focus:ring-[#2196F3] text-gray-800' />
+              <p className='text-sm text-gray-500 mt-1'>
+                = <span className='font-bold text-[#1E3A5F]'>{(points * 5).toLocaleString('fr-FR')} FCFA</span> de bon
+              </p>
+            </div>
+            <button onClick={convertir} disabled={loading || points < 100}
+              className='w-full bg-[#FF6B35] hover:bg-orange-600 disabled:opacity-50
+                         text-white font-bold py-2.5 rounded-lg transition-colors'>
+              {loading ? '...' : 'Générer le bon d\'achat'}
+            </button>
+          </div>
+        ) : (
+          <div className='p-5'>
+            <div className='border-2 border-dashed border-[#FF6B35] rounded-xl p-5 text-center'>
+              <p className='text-xs text-gray-400'>Code du bon</p>
+              <p className='text-xl font-bold tracking-wider text-[#1E3A5F]'>{bon.code}</p>
+              <p className='text-3xl font-bold text-[#FF6B35] my-2'>
+                {bon.valeur.toLocaleString('fr-FR')} FCFA
+              </p>
+              <p className='text-xs text-gray-500'>
+                {bon.points_utilises} points utilisés — reste {bon.points_restants} pts
+              </p>
+            </div>
+            <button onClick={imprimer}
+              className='w-full mt-4 flex items-center justify-center gap-2 bg-[#1E3A5F]
+                         hover:bg-blue-900 text-white font-bold py-2.5 rounded-xl transition-colors'>
+              <Printer size={16} /> Imprimer le bon
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -174,6 +275,7 @@ export default function Clients() {
   const [recherche, setRecherche]   = useState('');
   const [modal, setModal]           = useState(null);  // 'ajout' | client
   const [modalQR, setModalQR]       = useState(null);  // client pour QR
+  const [modalBon, setModalBon]     = useState(null);  // client pour conversion points
 
   const charger = async () => {
     setChargement(true);
@@ -251,6 +353,12 @@ export default function Clients() {
                       title='Modifier'>
                       <Pencil size={15} />
                     </button>
+                    <button onClick={() => setModalBon(c)} disabled={c.points < 100}
+                      className='p-1.5 text-[#FF6B35] hover:bg-orange-50 rounded-lg transition-colors
+                                 disabled:opacity-30 disabled:cursor-not-allowed'
+                      title={c.points < 100 ? 'Min. 100 points' : 'Convertir en bon d\'achat'}>
+                      <Gift size={15} />
+                    </button>
                   </div>
                 </td>
               </tr>
@@ -274,6 +382,13 @@ export default function Clients() {
         />
       )}
       {modalQR && <QRModal client={modalQR} onFermer={() => setModalQR(null)} />}
+      {modalBon && (
+        <ConversionModal
+          client={modalBon}
+          onFermer={() => setModalBon(null)}
+          onSuccess={charger}
+        />
+      )}
     </div>
   );
 }
