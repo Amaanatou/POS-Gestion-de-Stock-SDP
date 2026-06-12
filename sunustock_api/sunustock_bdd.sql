@@ -264,8 +264,8 @@ INSERT INTO alertes_stock (produit_id,type_alerte,quantite_actuelle,seuil,lue) V
 
 -- UTILISATEURS (mot de passe : password)
 INSERT INTO utilisateurs (nom,prenom,email,mot_de_passe,role) VALUES
-  ('Gaye',   'Ndeye Maty','ndeye@sunustock.sn',   '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi','admin'),
-  ('Drame',  'Manetou',   'manetou@sunustock.sn',  '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi','manager'),
+  ('Gaye',   'Ndeye Maty','ndeye@sunustock.sn',   '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi','manager'),
+  ('Drame',  'Manetou',   'manetou@sunustock.sn',  '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi','admin'),
   ('Diop',   'Fatou',     'fatou@sunustock.sn',    '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi','caissier'),
   ('Dieng',  'Mouhamed',  'mouhamed@sunustock.sn', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi','caissier'),
   ('Ndiaye', 'Aminata',   'aminata@sunustock.sn',  '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi','manager');
