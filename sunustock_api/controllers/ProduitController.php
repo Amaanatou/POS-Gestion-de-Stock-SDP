@@ -21,7 +21,7 @@ class ProduitController {
         $fournisseur = $_GET['fournisseur'] ?? '';
         $statut = $_GET['statut']    ?? '';
 
-        $sql    = 'SELECT p.id, p.nom, p.code_barre, p.sku, p.marque,
+        $sql    = 'SELECT p.id, p.nom, p.description, p.code_barre, p.sku, p.marque,
                           p.prix_achat, p.prix_vente, p.tva,
                           p.seuil_alerte, p.image_url, p.emplacement,
                           c.nom AS categorie,
@@ -150,12 +150,13 @@ class ProduitController {
 
         $stmt = $this->pdo->prepare(
             'INSERT INTO produits
-             (nom, code_barre, sku, marque, categorie_id, fournisseur_id,
+             (nom, description, code_barre, sku, marque, categorie_id, fournisseur_id,
               prix_achat, prix_vente, tva, seuil_alerte, emplacement, image_url)
-             VALUES (?,?,?,?,?,?,?,?,?,?,?,?)'
+             VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)'
         );
         $stmt->execute([
             $d['nom'],
+            $d['description']  ?? null,
             $d['code_barre']   ?? null,
             $d['sku']          ?? null,
             $d['marque']       ?? null,
@@ -208,11 +209,12 @@ class ProduitController {
 
         $this->pdo->prepare(
             'UPDATE produits
-             SET nom=?, code_barre=?, marque=?, categorie_id=?, fournisseur_id=?,
+             SET nom=?, description=?, code_barre=?, marque=?, categorie_id=?, fournisseur_id=?,
                  prix_achat=?, prix_vente=?, seuil_alerte=?, emplacement=?, image_url=?
              WHERE id = ?'
         )->execute([
             $d['nom'],
+            $d['description']  ?? null,
             $d['code_barre']   ?? null,
             $d['marque']       ?? null,
             $catId,
