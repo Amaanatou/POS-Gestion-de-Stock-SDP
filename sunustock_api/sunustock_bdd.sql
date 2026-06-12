@@ -35,6 +35,7 @@ CREATE TABLE produits (
     sku          VARCHAR(50) UNIQUE,
     marque       VARCHAR(100),
     categorie_id INT,
+    fournisseur_id INT,
     prix_achat   DECIMAL(12,2) DEFAULT 0.00,
     prix_vente   DECIMAL(12,2) DEFAULT 0.00,
     tva          DECIMAL(5,2)  DEFAULT 18.00,
@@ -44,9 +45,11 @@ CREATE TABLE produits (
     actif        TINYINT(1) DEFAULT 1,
     created_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    FOREIGN KEY (categorie_id) REFERENCES categories(id) ON DELETE SET NULL,
-    INDEX idx_code_barre (code_barre),
-    INDEX idx_nom        (nom)
+    FOREIGN KEY (categorie_id)   REFERENCES categories(id)   ON DELETE SET NULL,
+    FOREIGN KEY (fournisseur_id) REFERENCES fournisseurs(id) ON DELETE SET NULL,
+    INDEX idx_code_barre  (code_barre),
+    INDEX idx_nom         (nom),
+    INDEX idx_fournisseur (fournisseur_id)
 );
 
 CREATE TABLE stocks (
@@ -240,6 +243,9 @@ INSERT INTO produits (nom,code_barre,sku,marque,categorie_id,prix_achat,prix_ven
   ('Café Nescafé Gold 200g',        '7613035095129','CAF-200G-031','Nescafé',    5, 3500, 5000,18, 8,'Allée H - Rayon 4'),
   ('Crème hydratante Nivea 250ml',  '4005808729951','CRE-250ML-032','Nivea',     7, 2000, 3200,18, 8,'Allée I - Rayon 1'),
   ('Huile de coco bio 200ml',       '6009004567890','HCO-200ML-033','Bio Sn',    7, 1200, 2000,18,10,'Allée I - Rayon 2');
+
+-- Assignation d'un fournisseur à chaque produit (démo, réparti sur les 7 fournisseurs)
+UPDATE produits SET fournisseur_id = ((id % 7) + 1);
 
 -- STOCKS
 INSERT INTO stocks (produit_id, quantite) VALUES
