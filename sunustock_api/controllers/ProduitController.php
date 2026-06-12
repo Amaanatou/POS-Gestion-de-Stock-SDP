@@ -17,6 +17,7 @@ class ProduitController {
         auth();
         $search = $_GET['search']    ?? '';
         $cat    = $_GET['categorie'] ?? '';
+        $marque = $_GET['marque']    ?? '';
         $statut = $_GET['statut']    ?? '';
 
         $sql    = 'SELECT p.id, p.nom, p.code_barre, p.sku, p.marque,
@@ -39,6 +40,7 @@ class ProduitController {
             $params[] = "$search%";   // préfixe sur le code-barres (utilise l'index)
         }
         if ($cat)    { $sql .= ' AND c.nom = ?';          $params[] = $cat; }
+        if ($marque) { $sql .= ' AND p.marque LIKE ?';    $params[] = "%$marque%"; }
         if ($statut === 'rupture')  $sql .= ' AND s.quantite = 0';
         if ($statut === 'critique') $sql .= ' AND s.quantite > 0 AND s.quantite <= p.seuil_alerte';
         if ($statut === 'normal')   $sql .= ' AND s.quantite > p.seuil_alerte';
@@ -232,6 +234,40 @@ class ProduitController {
         autoriser(['admin'], $user);
         $this->pdo->prepare('UPDATE produits SET actif = 0 WHERE id = ?')->execute([$id]);
         echo json_encode(['success' => true, 'message' => 'Produit archivé']);
+    }
+
+    // Historique des ventes d'un produit (back-office) — manager/admin
+    public function ventes(int $id): void {
+        $user = auth();
+        autoriser(['manager', 'admin'], $user);
+
+        $stmt = $this->pdo->prepare(
+            'SELECT v.numero, v.created_at, v.statut,
+                    lv.quantite, lv.prix_unitaire, lv.sous_total
+             FROM lignes_ventes lv
+             JOIN ventes v ON v.id = lv.vente_id
+             WHERE lv.produit_id = ?
+             ORDER BY v.created_at DESC
+             LIMIT 100'
+        );
+        $stmt->execute([$id]);
+        $lignes = $stmt->fetchAll();
+
+        // Résumé sur les ventes validées uniquement
+        $r = $this->pdo->prepare(
+            'SELECT COALESCE(SUM(lv.quantite), 0)  AS total_qte,
+                    COALESCE(SUM(lv.sous_total), 0) AS total_ca
+             FROM lignes_ventes lv
+             JOIN ventes v ON v.id = lv.vente_id
+             WHERE lv.produit_id = ? AND v.statut = "validee"'
+        );
+        $r->execute([$id]);
+
+        echo json_encode([
+            'success' => true,
+            'data'    => $lignes,
+            'resume'  => $r->fetch(),
+        ]);
     }
 
     // ── Helpers ─────────────────────────────────────────────

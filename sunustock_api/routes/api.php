@@ -54,6 +54,8 @@ if ($base === 'produits') {
         if ($method === 'POST')   { $c->ajouterImage($sub);           exit; }
         if ($method === 'DELETE') { $c->supprimerImage($sub, $imgId); exit; }
     }
+    // Historique des ventes d'un produit (produit/{id}/ventes)
+    if ($method === 'GET' && is_numeric($sub) && $subsub === 'ventes') { $c->ventes($sub); exit; }
     if ($method === 'GET'    && !$sub)            { $c->lister();          exit; }
     if ($method === 'GET'    && $sub === 'barre') { $c->parBarre($subsub); exit; }
     if ($method === 'GET'    && is_numeric($sub)) { $c->obtenir($sub);     exit; }
