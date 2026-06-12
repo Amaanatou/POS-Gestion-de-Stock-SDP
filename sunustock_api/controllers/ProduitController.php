@@ -236,6 +236,40 @@ class ProduitController {
         echo json_encode(['success' => true, 'message' => 'Produit archivé']);
     }
 
+    // Historique des ventes d'un produit (back-office) — manager/admin
+    public function ventes(int $id): void {
+        $user = auth();
+        autoriser(['manager', 'admin'], $user);
+
+        $stmt = $this->pdo->prepare(
+            'SELECT v.numero, v.created_at, v.statut,
+                    lv.quantite, lv.prix_unitaire, lv.sous_total
+             FROM lignes_ventes lv
+             JOIN ventes v ON v.id = lv.vente_id
+             WHERE lv.produit_id = ?
+             ORDER BY v.created_at DESC
+             LIMIT 100'
+        );
+        $stmt->execute([$id]);
+        $lignes = $stmt->fetchAll();
+
+        // Résumé sur les ventes validées uniquement
+        $r = $this->pdo->prepare(
+            'SELECT COALESCE(SUM(lv.quantite), 0)  AS total_qte,
+                    COALESCE(SUM(lv.sous_total), 0) AS total_ca
+             FROM lignes_ventes lv
+             JOIN ventes v ON v.id = lv.vente_id
+             WHERE lv.produit_id = ? AND v.statut = "validee"'
+        );
+        $r->execute([$id]);
+
+        echo json_encode([
+            'success' => true,
+            'data'    => $lignes,
+            'resume'  => $r->fetch(),
+        ]);
+    }
+
     // ── Helpers ─────────────────────────────────────────────
 
     // Récupère les données depuis FormData ou JSON
