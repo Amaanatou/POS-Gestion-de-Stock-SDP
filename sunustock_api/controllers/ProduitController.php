@@ -17,6 +17,7 @@ class ProduitController {
         auth();
         $search = $_GET['search']    ?? '';
         $cat    = $_GET['categorie'] ?? '';
+        $marque = $_GET['marque']    ?? '';
         $statut = $_GET['statut']    ?? '';
 
         $sql    = 'SELECT p.id, p.nom, p.code_barre, p.sku, p.marque,
@@ -39,6 +40,7 @@ class ProduitController {
             $params[] = "$search%";   // préfixe sur le code-barres (utilise l'index)
         }
         if ($cat)    { $sql .= ' AND c.nom = ?';          $params[] = $cat; }
+        if ($marque) { $sql .= ' AND p.marque LIKE ?';    $params[] = "%$marque%"; }
         if ($statut === 'rupture')  $sql .= ' AND s.quantite = 0';
         if ($statut === 'critique') $sql .= ' AND s.quantite > 0 AND s.quantite <= p.seuil_alerte';
         if ($statut === 'normal')   $sql .= ' AND s.quantite > p.seuil_alerte';
