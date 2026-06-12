@@ -72,6 +72,7 @@ if ($base === 'stocks') {
     if ($method === 'POST' && $sub === 'entree')  { $c->entree();      exit; }
     if ($method === 'POST' && $sub === 'sortie')  { $c->sortie();      exit; }
     if ($method === 'POST' && $sub === 'ajust')   { $c->ajustement();  exit; }
+    if ($method === 'POST' && $sub === 'virtuel') { $c->virtuel();     exit; }
 }
 
 // ── MOUVEMENTS ───────────────────────────────────────────────

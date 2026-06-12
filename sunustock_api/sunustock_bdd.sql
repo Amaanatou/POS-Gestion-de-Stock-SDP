@@ -56,6 +56,8 @@ CREATE TABLE stocks (
     id         INT AUTO_INCREMENT PRIMARY KEY,
     produit_id INT NOT NULL UNIQUE,
     quantite   INT DEFAULT 0,
+    reserve    INT DEFAULT 0,
+    commande   INT DEFAULT 0,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     FOREIGN KEY (produit_id) REFERENCES produits(id) ON DELETE CASCADE
 );
@@ -254,6 +256,9 @@ INSERT INTO stocks (produit_id, quantite) VALUES
   (16,0),(17,7),(18,5),(19,30),(20,2),(21,25),(22,4),
   (23,1),(24,8),(25,0),(26,5),(27,24),(28,200),(29,45),
   (30,60),(31,6),(32,18),(33,12);
+
+-- Stock virtuel de démo : quelques réservations et commandes en cours
+UPDATE stocks SET reserve = (produit_id % 4), commande = (produit_id % 7) WHERE produit_id <= 33;
 
 -- ALERTES
 INSERT INTO alertes_stock (produit_id,type_alerte,quantite_actuelle,seuil,lue) VALUES
