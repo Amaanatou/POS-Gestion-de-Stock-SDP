@@ -10,6 +10,7 @@ require_once __DIR__ . '/../controllers/FournisseurController.php';
 require_once __DIR__ . '/../controllers/UtilisateurController.php';
 require_once __DIR__ . '/../controllers/JournalController.php';
 require_once __DIR__ . '/../controllers/SessionCaisseController.php';
+require_once __DIR__ . '/../controllers/EmailController.php';
 
 $method   = $_SERVER['REQUEST_METHOD'];
 $uri      = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
@@ -35,6 +36,12 @@ if ($base === 'auth') {
         default       => notFound(),
     };
     exit;
+}
+
+// ── EMAIL (reçu dématérialisé) ───────────────────────────────
+if ($base === 'email') {
+    $c = new EmailController($pdo);
+    if ($method === 'POST' && $sub === 'recu') { $c->envoyerRecu(); exit; }
 }
 
 // ── PRODUITS ─────────────────────────────────────────────────
