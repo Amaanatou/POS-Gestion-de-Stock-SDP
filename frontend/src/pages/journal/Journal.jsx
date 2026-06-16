@@ -6,6 +6,7 @@ import {
   ShieldAlert, XCircle, TrendingUp, SlidersHorizontal,
   UserX, UserCheck, FileClock, PackagePlus, PackageMinus,
 } from 'lucide-react';
+import EntetePage from '../../components/ui/EntetePage';
 
 // Config visuelle par type d'action
 const ACTIONS = {
@@ -47,13 +48,11 @@ export default function Journal() {
 
   return (
     <div>
-      <div className='flex items-center gap-2 mb-2'>
-        <ShieldAlert size={22} className='text-[#1E3A5F]' />
-        <h1 className='text-2xl font-bold text-gray-800'>Journal d'audit</h1>
-      </div>
-      <p className='text-sm text-gray-500 mb-6'>
-        Traçabilité de toutes les actions sensibles (sécurité)
-      </p>
+      <EntetePage
+        icone={ShieldAlert}
+        titre="Journal d'audit"
+        description='Traçabilité de toutes les actions sensibles, pour la sécurité.'
+      />
 
       {/* Filtre par type d'action — menu déroulant */}
       <div className='flex items-center gap-3 mb-5'>

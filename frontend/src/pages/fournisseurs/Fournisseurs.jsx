@@ -7,6 +7,7 @@ import { Plus, Pencil, Search, X, Truck, Phone, Mail, MapPin, Power } from 'luci
 import {
   getFournisseurs, creerFournisseur, modifierFournisseur, basculerFournisseur,
 } from '../../config/api';
+import EntetePage from '../../components/ui/EntetePage';
 
 // ── Modal Ajout / Modification ────────────────────────────────
 function FournisseurModal({ fournisseur, onFermer, onSuccess }) {
@@ -144,14 +145,18 @@ export default function Fournisseurs() {
 
   return (
     <div>
-      <div className='flex items-center justify-between mb-6'>
-        <h1 className='text-2xl font-bold text-gray-800'>Fournisseurs</h1>
-        <button onClick={() => setModal('ajout')}
-          className='flex items-center gap-2 bg-[#FF6B35] hover:bg-orange-600
-                     text-white font-bold px-4 py-2.5 rounded-lg transition-colors'>
-          <Plus size={18} /> Ajouter un fournisseur
-        </button>
-      </div>
+      <EntetePage
+        icone={Truck}
+        titre='Fournisseurs'
+        description="Vos partenaires d'approvisionnement et leurs coordonnées."
+        actions={
+          <button onClick={() => setModal('ajout')}
+            className='flex items-center gap-2 bg-[#FF6B35] hover:bg-orange-600
+                       text-white font-bold px-4 py-2.5 rounded-lg transition-colors'>
+            <Plus size={18} /> Ajouter un fournisseur
+          </button>
+        }
+      />
 
       {/* Recherche */}
       <div className='relative mb-5 max-w-md'>
@@ -163,7 +168,7 @@ export default function Fournisseurs() {
       </div>
 
       {/* Tableau */}
-      <div className='bg-white rounded-xl shadow overflow-hidden'>
+      <div className='bg-white rounded-2xl shadow-sm ring-1 ring-gray-100 overflow-hidden'>
         <table className='w-full'>
           <thead className='bg-[#1E3A5F] text-white text-sm'>
             <tr>

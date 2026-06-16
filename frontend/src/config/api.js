@@ -73,6 +73,12 @@ export const modifierProduit = (id, data, imageFile = null) =>
     body: toFormData({ ...data, _method: 'PUT' }, imageFile),
   }).then(r => r.json()).catch(() => ({ success: false, message: 'Erreur réseau' }));
 
+export const archiverProduit = (id) =>
+  request(`/produits/${id}`, { method: 'DELETE', headers: headers() });
+
+export const getVentesProduit = (id) =>
+  request(`/produits/${id}/ventes`, { headers: headers() });
+
 // ─── ACCESSOIRES / PRODUITS LIÉS ─────────────────────────────
 export const getAccessoires = (produitId) =>
   request(`/produits/${produitId}/accessoires`, { headers: headers() });
@@ -125,8 +131,21 @@ export const sortieStock = (produit_id, quantite, motif, type = 'sortie') =>
     body: JSON.stringify({ produit_id, quantite, motif, type }),
   });
 
+export const ajusterStockVirtuel = (produit_id, reserve, commande) =>
+  request('/stocks/virtuel', {
+    method: 'POST', headers: headers(),
+    body: JSON.stringify({ produit_id, reserve, commande }),
+  });
+
 export const getMouvements = () =>
   request('/mouvements', { headers: headers() });
+
+// ─── E-MAIL (reçu dématérialisé §2.3) ────────────────────────
+export const envoyerRecuEmail = (vente_id, email, image = null) =>
+  request('/email/recu', {
+    method: 'POST', headers: headers(),
+    body: JSON.stringify({ vente_id, email, image }),
+  });
 
 // ─── ALERTES ─────────────────────────────────────────────────
 export const getAlertes = () =>
@@ -172,8 +191,8 @@ export const retournerVente = (id, articles) =>
 export const getClients = () =>
   request('/clients', { headers: headers() });
 
-export const rechercherClient = (telephone) =>
-  request(`/clients/recherche/${telephone}`, { headers: headers() });
+export const rechercherClient = (q) =>
+  request(`/clients/recherche/${encodeURIComponent(q)}`, { headers: headers() });
 
 export const creerClient = (data) =>
   request('/clients', {

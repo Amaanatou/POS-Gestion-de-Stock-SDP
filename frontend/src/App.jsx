@@ -22,7 +22,7 @@ const Layout       = lazy(() => import('./components/layout/Layout'));
 
 // Permissions par rôle
 const PERMISSIONS = {
-  caissier: ['/caisse'],
+  caissier: ['/caisse', '/sessions-caisse'],
   manager:  ['/dashboard', '/produits', '/stocks', '/mouvements', '/alertes', '/caisse', '/sessions-caisse', '/ventes', '/fournisseurs', '/clients'],
   admin:    ['/dashboard', '/produits', '/stocks', '/mouvements', '/alertes', '/caisse', '/sessions-caisse', '/ventes', '/fournisseurs', '/clients', '/utilisateurs', '/journal'],
 };

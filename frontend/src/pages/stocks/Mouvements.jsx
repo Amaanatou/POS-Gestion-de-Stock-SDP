@@ -1,7 +1,8 @@
 // src/pages/stocks/Mouvements.jsx
 import { useState, useEffect } from 'react';
 import { getMouvements } from '../../config/api';
-import { ArrowDownCircle, ArrowUpCircle, Filter } from 'lucide-react';
+import { ArrowDownCircle, ArrowUpCircle, Filter, ArrowLeftRight } from 'lucide-react';
+import EntetePage from '../../components/ui/EntetePage';
 
 export default function Mouvements() {
   const [mouvements, setMouvements] = useState([]);
@@ -30,9 +31,11 @@ export default function Mouvements() {
 
   return (
     <div>
-      <h1 className='text-2xl font-bold text-gray-800 mb-6'>
-        Historique des mouvements
-      </h1>
+      <EntetePage
+        icone={ArrowLeftRight}
+        titre='Historique des mouvements'
+        description='Toutes les entrées, sorties et retours de stock, tracés dans le temps.'
+      />
 
       {/* ── Filtres ── */}
       <div className='flex flex-wrap gap-3 mb-5'>

@@ -22,10 +22,13 @@ function StatutBadge({ statut }) {
   );
 }
 
+// Détecte si la saisie ressemble à un numéro de téléphone (pour pré-remplir le bon champ)
+const ressembleTelephone = (s) => /^\+?[\d\s().-]{6,}$/.test((s || '').trim());
+
 // Mini-formulaire de création rapide
-function NouveauClient({ telephone, onCree, onAnnuler }) {
-  const [nom, setNom]       = useState('');
-  const [tel, setTel]       = useState(telephone || '');
+function NouveauClient({ nomInitial = '', telInitial = '', onCree, onAnnuler }) {
+  const [nom, setNom]       = useState(nomInitial);
+  const [tel, setTel]       = useState(telInitial);
   const [statut, setStatut] = useState('standard');
   const [loading, setLoading] = useState(false);
 
@@ -162,7 +165,8 @@ export default function ClientZone({ client, onClientChange }) {
           </button>
         </div>
         <NouveauClient
-          telephone={recherche}
+          nomInitial={ressembleTelephone(recherche) ? '' : recherche.trim()}
+          telInitial={ressembleTelephone(recherche) ? recherche.trim() : ''}
           onCree={(c) => { onClientChange(c); setModeCreation(false); setRecherche(''); }}
           onAnnuler={() => setModeCreation(false)}
         />
@@ -177,8 +181,8 @@ export default function ClientZone({ client, onClientChange }) {
         <div className='relative flex-1'>
           <Search size={14} className='absolute left-2.5 top-2.5 text-gray-400' />
           <input
-            type='tel'
-            placeholder='Téléphone client (fidélité)'
+            type='text'
+            placeholder='Nom ou téléphone (fidélité)'
             value={recherche}
             onChange={e => setRecherche(e.target.value)}
             onKeyDown={e => e.key === 'Enter' && chercher()}

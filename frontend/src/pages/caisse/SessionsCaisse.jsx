@@ -6,6 +6,8 @@ import { Wallet, LockOpen, Lock, TrendingUp, TrendingDown, Check } from 'lucide-
 import {
   getSessionCourante, getSessionsCaisse, ouvrirCaisse, fermerCaisse,
 } from '../../config/api';
+import EntetePage from '../../components/ui/EntetePage';
+import { useAuth } from '../../context/AuthContext';
 
 const fmt = (n) => Number(n || 0).toLocaleString('fr-FR');
 
@@ -18,6 +20,9 @@ function EcartBadge({ ecart }) {
 }
 
 export default function SessionsCaisse() {
+  const { utilisateur } = useAuth();
+  const estCaissier = utilisateur?.role === 'caissier';
+
   const [courante, setCourante]   = useState(null);
   const [historique, setHistorique] = useState([]);
   const [chargement, setChargement] = useState(true);
@@ -30,9 +35,13 @@ export default function SessionsCaisse() {
 
   const charger = async () => {
     setChargement(true);
-    const [resC, resH] = await Promise.all([getSessionCourante(), getSessionsCaisse()]);
+    // La caissière ne voit que sa caisse courante ; l'historique reste au responsable
+    const resC = await getSessionCourante();
     if (resC.success) setCourante(resC.data);
-    if (resH.success) setHistorique(resH.data);
+    if (!estCaissier) {
+      const resH = await getSessionsCaisse();
+      if (resH.success) setHistorique(resH.data);
+    }
     setChargement(false);
   };
 
@@ -65,15 +74,18 @@ export default function SessionsCaisse() {
 
   return (
     <div>
-      <div className='flex items-center gap-2 mb-6'>
-        <Wallet size={22} className='text-[#1E3A5F]' />
-        <h1 className='text-2xl font-bold text-gray-800'>Caisse — Ouverture / Fermeture</h1>
-      </div>
+      <EntetePage
+        icone={Wallet}
+        titre={estCaissier ? 'Ouverture de caisse' : 'Caisse — Ouverture / Fermeture'}
+        description={estCaissier
+          ? 'Ouvrez votre caisse en début de service en déclarant le fond de caisse.'
+          : 'Ouvrez la caisse, comptez le fond et validez les écarts en fin de journée.'}
+      />
 
       {/* État de la caisse */}
       {!courante ? (
         /* ── Caisse fermée : ouvrir ── */
-        <div className='bg-white rounded-xl shadow p-6 max-w-md mb-8'>
+        <div className='bg-white rounded-2xl shadow-sm ring-1 ring-gray-100 p-6 max-w-md mb-8'>
           <div className='flex items-center gap-2 mb-4'>
             <Lock size={18} className='text-gray-400' />
             <h2 className='font-semibold text-gray-700'>Caisse fermée</h2>
@@ -94,8 +106,8 @@ export default function SessionsCaisse() {
           </button>
         </div>
       ) : (
-        /* ── Caisse ouverte : suivi + fermer ── */
-        <div className='bg-white rounded-xl shadow p-6 max-w-md mb-8'>
+        /* ── Caisse ouverte : suivi (+ fermeture pour le responsable) ── */
+        <div className='bg-white rounded-2xl shadow-sm ring-1 ring-gray-100 p-6 max-w-md mb-8'>
           <div className='flex items-center gap-2 mb-4'>
             <LockOpen size={18} className='text-green-500' />
             <h2 className='font-semibold text-gray-700'>Caisse ouverte</h2>
@@ -112,39 +124,50 @@ export default function SessionsCaisse() {
             </div>
           </div>
 
-          <label className='block text-sm font-medium text-gray-700 mb-1'>
-            Montant compté en caisse (FCFA)
-          </label>
-          <input type='number' min='0' value={compte}
-            onChange={e => setCompte(e.target.value)}
-            placeholder='Compte physique du tiroir'
-            className='w-full border border-gray-300 rounded-lg px-4 py-2.5 mb-2
-                       focus:outline-none focus:ring-2 focus:ring-[#2196F3]' />
-
-          {/* Écart en temps réel */}
-          {compte > 0 && (
-            <div className='mb-3 text-center text-sm'>
-              Écart prévu : <EcartBadge ecart={Number(compte) - Number(courante.montant_attendu)} />
+          {estCaissier ? (
+            /* La caissière suit sa caisse mais ne la ferme pas (contrôle responsable) */
+            <div className='flex items-start gap-2 bg-blue-50 text-[#1E3A5F] rounded-lg p-3 text-sm'>
+              <Lock size={16} className='mt-0.5 flex-shrink-0' />
+              <span>La fermeture et la validation de l'écart sont effectuées par un responsable en fin de journée.</span>
             </div>
+          ) : (
+            <>
+              <label className='block text-sm font-medium text-gray-700 mb-1'>
+                Montant compté en caisse (FCFA)
+              </label>
+              <input type='number' min='0' value={compte}
+                onChange={e => setCompte(e.target.value)}
+                placeholder='Compte physique du tiroir'
+                className='w-full border border-gray-300 rounded-lg px-4 py-2.5 mb-2
+                           focus:outline-none focus:ring-2 focus:ring-[#2196F3]' />
+
+              {/* Écart en temps réel */}
+              {compte > 0 && (
+                <div className='mb-3 text-center text-sm'>
+                  Écart prévu : <EcartBadge ecart={Number(compte) - Number(courante.montant_attendu)} />
+                </div>
+              )}
+
+              <input type='text' value={note} onChange={e => setNote(e.target.value)}
+                placeholder='Note (optionnel) — ex : billet manquant'
+                className='w-full border border-gray-300 rounded-lg px-4 py-2 mb-3 text-sm
+                           focus:outline-none focus:ring-2 focus:ring-[#2196F3]' />
+
+              <button onClick={fermer} disabled={action}
+                className='w-full flex items-center justify-center gap-2 bg-[#1E3A5F]
+                           hover:bg-blue-900 disabled:opacity-50 text-white font-bold
+                           py-2.5 rounded-xl transition-colors'>
+                <Lock size={18} /> Fermer & valider l'écart
+              </button>
+            </>
           )}
-
-          <input type='text' value={note} onChange={e => setNote(e.target.value)}
-            placeholder='Note (optionnel) — ex : billet manquant'
-            className='w-full border border-gray-300 rounded-lg px-4 py-2 mb-3 text-sm
-                       focus:outline-none focus:ring-2 focus:ring-[#2196F3]' />
-
-          <button onClick={fermer} disabled={action}
-            className='w-full flex items-center justify-center gap-2 bg-[#1E3A5F]
-                       hover:bg-blue-900 disabled:opacity-50 text-white font-bold
-                       py-2.5 rounded-xl transition-colors'>
-            <Lock size={18} /> Fermer & valider l'écart
-          </button>
         </div>
       )}
 
-      {/* Historique des sessions */}
+      {/* Historique des sessions — réservé au responsable */}
+      {!estCaissier && (<>
       <h2 className='text-base font-semibold text-gray-700 mb-3'>Historique des caisses</h2>
-      <div className='bg-white rounded-xl shadow overflow-hidden'>
+      <div className='bg-white rounded-2xl shadow-sm ring-1 ring-gray-100 overflow-hidden'>
         <table className='w-full'>
           <thead className='bg-[#1E3A5F] text-white text-sm'>
             <tr>
@@ -179,6 +202,7 @@ export default function SessionsCaisse() {
           <div className='text-center py-12 text-gray-400'>Aucune session enregistrée</div>
         )}
       </div>
+      </>)}
     </div>
   );
 }

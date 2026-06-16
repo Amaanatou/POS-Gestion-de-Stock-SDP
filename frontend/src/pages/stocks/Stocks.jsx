@@ -1,9 +1,12 @@
 // src/pages/stocks/Stocks.jsx
 import { useState, useEffect } from 'react';
+import { Warehouse, Layers } from 'lucide-react';
 import { getStocks } from '../../config/api';
 import StockBadge from '../../components/ui/StockBadge';
+import EntetePage from '../../components/ui/EntetePage';
 import EntreeStockModal from './EntreeStockModal';
 import SortieStockModal from './SortieStockModal';
+import VirtuelStockModal from './VirtuelStockModal';
 
 export default function Stocks() {
   const [stocks, setStocks]         = useState([]);
@@ -12,6 +15,7 @@ export default function Stocks() {
   const [filtre, setFiltre]         = useState('tous');
   const [modal, setModal]           = useState(null);       // entrée stock
   const [modalSortie, setModalSortie] = useState(null);     // sortie / perte
+  const [modalVirtuel, setModalVirtuel] = useState(null);   // stock virtuel
   const [page, setPage]             = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [total, setTotal]           = useState(0);
@@ -54,7 +58,11 @@ export default function Stocks() {
 
   return (
     <div>
-      <h1 className='text-2xl font-bold text-gray-800 mb-6'>Gestion des Stocks</h1>
+      <EntetePage
+        icone={Warehouse}
+        titre='Gestion des Stocks'
+        description='Suivez les quantités, faites vos entrées et sorties de marchandises.'
+      />
       <div className='flex flex-wrap gap-3 mb-6'>
         <input
           type='text' placeholder='Rechercher un produit...'
@@ -72,11 +80,11 @@ export default function Stocks() {
           </button>
         ))}
       </div>
-      <div className='bg-white rounded-xl shadow overflow-hidden'>
+      <div className='bg-white rounded-2xl shadow-sm ring-1 ring-gray-100 overflow-hidden'>
         <table className='w-full'>
           <thead className='bg-[#1E3A5F] text-white'>
             <tr>
-              {['Produit', 'Code-barres', 'Quantité', 'Seuil alerte', 'Statut', 'Actions'].map(h => (
+              {['Produit', 'Code-barres', 'Réel', 'Virtuel', 'Seuil', 'Statut', 'Actions'].map(h => (
                 <th key={h} className='px-4 py-3 text-left text-sm font-medium'>{h}</th>
               ))}
             </tr>
@@ -98,6 +106,14 @@ export default function Stocks() {
                     {s.quantite}
                   </span>
                 </td>
+                <td className='px-4 py-3'>
+                  <span className='text-lg font-bold text-[#2196F3]'>{s.stock_virtuel ?? s.quantite}</span>
+                  {(s.reserve > 0 || s.commande > 0) && (
+                    <span className='block text-[10px] text-gray-400'>
+                      rés. {s.reserve} · cmd {s.commande}
+                    </span>
+                  )}
+                </td>
                 <td className='px-4 py-3 text-sm text-gray-600'>{s.seuil_alerte}</td>
                 <td className='px-4 py-3'><StockBadge statut={s.statut} /></td>
                 <td className='px-4 py-3'>
@@ -114,6 +130,13 @@ export default function Stocks() {
                       className='bg-red-500 hover:bg-red-600 disabled:opacity-40 text-white text-xs
                                  px-3 py-1.5 rounded-lg transition-colors'>
                       − Sortie/Perte
+                    </button>
+                    <button
+                      onClick={() => setModalVirtuel(s)}
+                      className='flex items-center gap-1 border border-[#2196F3] text-[#2196F3]
+                                 hover:bg-blue-50 text-xs px-3 py-1.5 rounded-lg transition-colors'
+                      title='Stock virtuel (réservé / commande)'>
+                      <Layers size={13} /> Virtuel
                     </button>
                   </div>
                 </td>
@@ -163,6 +186,15 @@ export default function Stocks() {
           produit={modalSortie}
           onFermer={() => setModalSortie(null)}
           onSuccess={() => { setModalSortie(null); charger(); }}
+        />
+      )}
+
+      {/* Modal de stock virtuel */}
+      {modalVirtuel && (
+        <VirtuelStockModal
+          produit={modalVirtuel}
+          onFermer={() => setModalVirtuel(null)}
+          onSuccess={() => { setModalVirtuel(null); charger(); }}
         />
       )}
     </div>

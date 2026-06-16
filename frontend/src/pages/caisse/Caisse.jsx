@@ -4,11 +4,13 @@ import { useForm } from 'react-hook-form';
 import toast from 'react-hot-toast';
 import {
   Search, Plus, Minus, Trash2, ShoppingCart,
-  CreditCard, Banknote, X, CheckCircle, Printer, ScanLine, FileText,
+  CreditCard, Banknote, X, CheckCircle, Printer, ScanLine, FileText, Mail, Download, WifiOff, RefreshCw,
 } from 'lucide-react';
 import { genererFacturePDF } from '../../utils/facturePDF';
+import html2canvas from 'html2canvas';
 import QRCode from 'qrcode';
-import { getProduits, getProduitParBarre, creerVente, getAccessoires } from '../../config/api';
+import { getProduits, getProduitParBarre, creerVente, getAccessoires, envoyerRecuEmail } from '../../config/api';
+import { mettreEnAttente, synchroniser, nbEnAttente } from '../../utils/offline';
 import BarcodeScanner from '../../components/ui/BarcodeScanner';
 import ClientZone from './ClientZone';
 import AccessoiresPopup from './AccessoiresPopup';
@@ -125,6 +127,10 @@ function Recu({ vente, onFermer }) {
 
   // QR code de retour (contient le n° de vente) — scannable pour traiter un retour
   const [qrRetour, setQrRetour] = useState('');
+  const [largeur, setLargeur]   = useState(80); // format thermique : 58 ou 80 mm (§2.3)
+  const [email, setEmail]           = useState('');
+  const [envoiMail, setEnvoiMail]   = useState(false);
+  const [mailEnvoye, setMailEnvoye] = useState(false);
   useEffect(() => {
     QRCode.toDataURL('RETOUR:' + (vente.numero || ''), { width: 110, margin: 1 })
       .then(setQrRetour).catch(() => {});
@@ -148,13 +154,55 @@ function Recu({ vente, onFermer }) {
   const fmt = (n) => Number(n).toLocaleString('fr-FR');
   const nbArticles = vente.lignes.reduce((s, l) => s + l.quantite, 0);
 
+  // Impression thermique : injecte la largeur choisie (58 ou 80 mm) puis imprime
+  const imprimer = () => {
+    let st = document.getElementById('ticket-largeur-style');
+    if (!st) {
+      st = document.createElement('style');
+      st.id = 'ticket-largeur-style';
+      document.head.appendChild(st);
+    }
+    st.textContent =
+      `@media print { #recu-imprimable { width: ${largeur}mm; } @page { size: ${largeur}mm auto; margin: 0; } }`;
+    window.print();
+  };
+
+  // Capturer le ticket en image PNG (html2canvas)
+  const capturerImage = async () => {
+    const el = document.getElementById('recu-imprimable');
+    if (!el) return null;
+    const canvas = await html2canvas(el, { scale: 2, backgroundColor: '#ffffff', useCORS: true });
+    return canvas.toDataURL('image/png');
+  };
+
+  // Télécharger le reçu en image
+  const telecharger = async () => {
+    const data = await capturerImage();
+    if (!data) return;
+    const a = document.createElement('a');
+    a.href = data;
+    a.download = `recu-${vente.numero}.png`;
+    a.click();
+  };
+
+  // Envoyer le reçu par e-mail, avec l'image du ticket en pièce jointe (§2.3)
+  const envoyerEmail = async () => {
+    if (!email) return;
+    setEnvoiMail(true);
+    const image = await capturerImage();
+    const res = await envoyerRecuEmail(vente.id, email, image);
+    setEnvoiMail(false);
+    if (res.success) { setMailEnvoye(true); toast.success(res.message || 'Reçu envoyé'); }
+    else toast.error(res.message || "Échec de l'envoi");
+  };
+
   return (
     <div className='fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4 print:bg-white print:p-0'>
       <div className='bg-white rounded-2xl shadow-2xl w-full max-w-sm max-h-[92vh] overflow-y-auto print:shadow-none print:max-h-none print:rounded-none'>
 
         {/* En-tête (caché à l'impression) */}
         <div className='p-4 border-b flex items-center justify-between print:hidden'>
-          <h2 className='text-lg font-bold text-gray-800'>Vente enregistrée ✅</h2>
+          <h2 className='text-lg font-bold text-gray-800'>{vente.horsLigne ? 'Vente hors-ligne ⏳' : 'Vente enregistrée ✅'}</h2>
           <button onClick={onFermer} className='text-gray-400 hover:text-gray-600'>
             <X size={20} />
           </button>
@@ -292,22 +340,56 @@ function Recu({ vente, onFermer }) {
 
         {/* Boutons (cachés à l'impression) */}
         <div className='p-4 border-t print:hidden space-y-2'>
+          {/* Format thermique 58 / 80 mm (§2.3) */}
+          <div className='flex items-center justify-center gap-2 text-xs text-gray-500'>
+            <span>Format&nbsp;:</span>
+            <div className='inline-flex rounded-lg border border-gray-300 overflow-hidden'>
+              {[58, 80].map(w => (
+                <button key={w} onClick={() => setLargeur(w)}
+                  className={`px-3 py-1 font-medium transition-colors
+                    ${largeur === w ? 'bg-[#1E3A5F] text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`}>
+                  {w}mm
+                </button>
+              ))}
+            </div>
+          </div>
           <div className='flex gap-2'>
             <button
-              onClick={() => window.print()}
-              className='flex-1 flex items-center justify-center gap-2 border
+              onClick={imprimer}
+              className='flex-1 flex items-center justify-center gap-1.5 border
                          border-gray-300 text-gray-700 py-2.5 rounded-lg
                          hover:bg-gray-50 transition-colors text-sm font-medium'
             >
-              <Printer size={16} /> Reçu
+              <Printer size={16} /> Imprimer
+            </button>
+            <button
+              onClick={telecharger}
+              className='flex-1 flex items-center justify-center gap-1.5 border
+                         border-[#1E3A5F] text-[#1E3A5F] py-2.5 rounded-lg
+                         hover:bg-blue-50 transition-colors text-sm font-medium'
+            >
+              <Download size={16} /> Image
             </button>
             <button
               onClick={() => genererFacturePDF(vente)}
-              className='flex-1 flex items-center justify-center gap-2 border
+              className='flex-1 flex items-center justify-center gap-1.5 border
                          border-[#FF6B35] text-[#FF6B35] py-2.5 rounded-lg
                          hover:bg-orange-50 transition-colors text-sm font-medium'
             >
-              <FileText size={16} /> Facture PDF
+              <FileText size={16} /> Facture
+            </button>
+          </div>
+          {/* Reçu dématérialisé par e-mail (§2.3) */}
+          <div className='flex gap-2'>
+            <input type='email' value={email} onChange={e => { setEmail(e.target.value); setMailEnvoye(false); }}
+              placeholder='email@client.com'
+              className='flex-1 border border-gray-300 rounded-lg px-3 py-2.5 text-sm
+                         focus:outline-none focus:ring-2 focus:ring-[#2196F3]' />
+            <button onClick={envoyerEmail} disabled={envoiMail || !email}
+              className='flex items-center gap-1.5 border border-[#1E3A5F] text-[#1E3A5F]
+                         px-4 py-2.5 rounded-lg hover:bg-blue-50 disabled:opacity-50 text-sm font-medium'>
+              {mailEnvoye ? <CheckCircle size={16} /> : <Mail size={16} />}
+              {envoiMail ? '...' : mailEnvoye ? 'Envoyé' : 'E-mail'}
             </button>
           </div>
           <button
@@ -338,6 +420,8 @@ export default function Caisse() {
   const [client, setClient]           = useState(null);  // client fidélité sélectionné
   const [accessoires, setAccessoires] = useState(null);  // { produitNom, liste } | null
   const [remiseManuelle, setRemiseManuelle] = useState(0); // remise % saisie par le caissier
+  const [enLigne, setEnLigne]         = useState(navigator.onLine); // mode hors-ligne (§3.3)
+  const [nbAttente, setNbAttente]     = useState(0);   // ventes en file d'attente locale
   const rechercheRef = useRef(null);
 
   // Seuil de remise sans validation manager (cahier §2.2)
@@ -365,6 +449,35 @@ export default function Caisse() {
     }, 300);
     return () => clearTimeout(t);
   }, [recherche]);
+
+  // ── Mode hors-ligne : suivi de la connexion + synchronisation (§3.3) ──
+  useEffect(() => {
+    setNbAttente(nbEnAttente());
+    const flush = async () => {
+      setEnLigne(true);
+      if (nbEnAttente() > 0) {
+        const r = await synchroniser(creerVente);
+        setNbAttente(nbEnAttente());
+        if (r.envoyees > 0) toast.success(`${r.envoyees} vente(s) hors-ligne synchronisée(s)`);
+      }
+    };
+    const onOffline = () => setEnLigne(false);
+    window.addEventListener('online', flush);
+    window.addEventListener('offline', onOffline);
+    if (navigator.onLine) flush();   // au montage : vider la file si possible
+    return () => {
+      window.removeEventListener('online', flush);
+      window.removeEventListener('offline', onOffline);
+    };
+  }, []);
+
+  // Synchronisation manuelle (bouton)
+  const synchroniserManuel = async () => {
+    if (!navigator.onLine) { toast.error('Toujours hors ligne'); return; }
+    const r = await synchroniser(creerVente);
+    setNbAttente(nbEnAttente());
+    toast.success(r.envoyees > 0 ? `${r.envoyees} vente(s) synchronisée(s)` : 'Rien à synchroniser');
+  };
 
   // ── Recherche scan code-barres ────────────────────────────
   const scannerCodeBarre = async (code) => {
@@ -489,36 +602,48 @@ export default function Caisse() {
       prix_vente: l.produit.prix_vente,
     }));
 
-    const res = await creerVente(lignes, modePaiement, client?.id || null, remiseManuelleAppliquee);
+    const clientId = client?.id || null;
+
+    // Données communes du reçu (en ligne comme hors ligne)
+    const recuBase = {
+      lignes, totalHTBrut, remiseClient, tauxRemise,
+      remiseManuelle: remiseManuelleAppliquee, remiseManuelleMontant,
+      totalHT, totalTVA, totalTTC, modePaiement, montantRecu,
+      monnaie:  modePaiement === 'especes' ? Math.max(0, montantRecu - totalTTC) : 0,
+      caissier: `${utilisateur?.prenom || ''} ${utilisateur?.nom || ''}`.trim(),
+      date:     new Date(),
+    };
+
+    // Hors ligne : on n'appelle pas le serveur, on prépare la mise en file
+    const res = navigator.onLine
+      ? await creerVente(lignes, modePaiement, clientId, remiseManuelleAppliquee)
+      : { success: false, message: 'Impossible de contacter le serveur' };
     setModalPaiement(false);
 
     if (res.success) {
       setRecu({
-        lignes,
-        totalHTBrut,
-        remiseClient,
-        tauxRemise,
-        remiseManuelle: remiseManuelleAppliquee,
-        remiseManuelleMontant,
-        totalHT,
-        totalTVA,
-        totalTTC,
-        modePaiement,
-        montantRecu,
-        monnaie:   modePaiement === 'especes' ? Math.max(0, montantRecu - totalTTC) : 0,
-        numero:    res.numero || '—',
-        caissier:  `${utilisateur?.prenom || ''} ${utilisateur?.nom || ''}`.trim(),
-        client:    client ? { nom: client.nom, statut: client.statut, points_gagnes: res.points_gagnes || 0 } : null,
-        date:      new Date(),
+        ...recuBase,
+        id:     res.id,
+        numero: res.numero || '—',
+        client: client ? { nom: client.nom, statut: client.statut, points_gagnes: res.points_gagnes || 0 } : null,
       });
-      viderPanier();
-      setClient(null);   // réinitialiser le client pour la prochaine vente
-      setRemiseManuelle(0);
+      viderPanier(); setClient(null); setRemiseManuelle(0);
       toast.success(
-        res.points_gagnes
-          ? `Vente enregistrée ! +${res.points_gagnes} points`
-          : 'Vente enregistrée !'
+        res.points_gagnes ? `Vente enregistrée ! +${res.points_gagnes} points` : 'Vente enregistrée !'
       );
+    } else if (!navigator.onLine || res.message === 'Impossible de contacter le serveur') {
+      // ── Réseau indisponible → file d'attente locale (§3.3) ──
+      setEnLigne(false);
+      const n = mettreEnAttente({ lignes, modePaiement, clientId, remiseManuelle: remiseManuelleAppliquee });
+      setNbAttente(n);
+      setRecu({
+        ...recuBase,
+        horsLigne: true,
+        numero:    'HORS-LIGNE',
+        client:    client ? { nom: client.nom, statut: client.statut, points_gagnes: 0 } : null,
+      });
+      viderPanier(); setClient(null); setRemiseManuelle(0);
+      toast.success('Vente enregistrée hors-ligne — sera synchronisée au retour du réseau', { duration: 3500 });
     } else {
       toast.error(res.message || 'Erreur lors de la vente');
     }
@@ -532,6 +657,24 @@ export default function Caisse() {
 
       {/* ══════════════ ZONE PRODUITS (gauche) ══════════════ */}
       <div className='flex-1 flex flex-col min-w-0'>
+
+        {/* Indicateur de connexion / file d'attente hors-ligne (§3.3) */}
+        {(!enLigne || nbAttente > 0) && (
+          <div className={`flex items-center justify-between gap-2 mb-3 px-3 py-2 rounded-lg text-sm
+            ${enLigne ? 'bg-blue-50 text-[#1E3A5F]' : 'bg-orange-50 text-orange-700'}`}>
+            <span className='flex items-center gap-2 font-medium'>
+              {enLigne
+                ? <><RefreshCw size={15} /> {nbAttente} vente(s) en attente de synchronisation</>
+                : <><WifiOff size={15} /> Hors ligne — les ventes sont enregistrées localement{nbAttente > 0 ? ` (${nbAttente} en attente)` : ''}</>}
+            </span>
+            {enLigne && nbAttente > 0 && (
+              <button onClick={synchroniserManuel}
+                className='flex items-center gap-1 bg-[#1E3A5F] text-white px-3 py-1 rounded-md text-xs font-medium hover:bg-blue-900 transition-colors'>
+                <RefreshCw size={12} /> Synchroniser
+              </button>
+            )}
+          </div>
+        )}
 
         {/* Barre de recherche + bouton scanner */}
         <div className='flex gap-2 mb-4'>
