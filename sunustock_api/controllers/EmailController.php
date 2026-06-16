@@ -103,7 +103,7 @@ class EmailController {
 <div style="max-width:480px;margin:0 auto;font-family:Arial,Helvetica,sans-serif;background:#f4f6f9;padding:24px">
   <div style="background:#1E3A5F;border-radius:14px 14px 0 0;padding:24px;text-align:center">
     <span style="font-size:26px;font-weight:800;color:#fff">Sunu</span><span style="font-size:26px;font-weight:800;color:#FF6B35">Stock</span>
-    <p style="margin:6px 0 0;color:rgba(255,255,255,.7);font-size:12px">Reçu de caisse dématérialisé</p>
+    <p style="margin:6px 0 0;color:rgba(255,255,255,.7);font-size:12px">Reçu de caisse</p>
   </div>
   <div style="background:#fff;padding:24px;border-radius:0 0 14px 14px">
     <div style="border-bottom:1px dashed #ddd;padding-bottom:12px;margin-bottom:12px">
