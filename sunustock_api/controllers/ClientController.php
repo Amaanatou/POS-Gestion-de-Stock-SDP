@@ -18,15 +18,17 @@ class ClientController {
     // Recherche d'un client par téléphone (utilisé à la caisse)
     public function rechercher(string $tel): void {
         auth();
+        $tel = urldecode(trim($tel)); // le nom peut contenir des espaces (encodés dans l'URL)
+        // Recherche par téléphone OU par nom
         $s = $this->pdo->prepare(
             'SELECT id, nom, telephone, statut, points
-             FROM clients WHERE telephone = ? LIMIT 1'
+             FROM clients WHERE telephone = ? OR nom LIKE ? LIMIT 1'
         );
-        $s->execute([$tel]);
+        $s->execute([$tel, "%$tel%"]);
         $client = $s->fetch();
         if (!$client) {
             http_response_code(404);
-            echo json_encode(['success' => false, 'message' => 'Aucun client avec ce numéro']);
+            echo json_encode(['success' => false, 'message' => 'Aucun client trouvé']);
             return;
         }
         echo json_encode(['success' => true, 'data' => $client]);

@@ -18,19 +18,22 @@ class ProduitController {
         $search = $_GET['search']    ?? '';
         $cat    = $_GET['categorie'] ?? '';
         $marque = $_GET['marque']    ?? '';
+        $fournisseur = $_GET['fournisseur'] ?? '';
         $statut = $_GET['statut']    ?? '';
 
-        $sql    = 'SELECT p.id, p.nom, p.code_barre, p.sku, p.marque,
+        $sql    = 'SELECT p.id, p.nom, p.description, p.code_barre, p.sku, p.marque,
                           p.prix_achat, p.prix_vente, p.tva,
                           p.seuil_alerte, p.image_url, p.emplacement,
                           c.nom AS categorie,
+                          p.fournisseur_id, f.nom AS fournisseur,
                           s.quantite,
                           CASE WHEN s.quantite = 0              THEN "rupture"
                                WHEN s.quantite <= p.seuil_alerte THEN "critique"
                                ELSE "normal" END AS statut_stock
                    FROM produits p
-                   LEFT JOIN categories c ON c.id = p.categorie_id
-                   LEFT JOIN stocks     s ON s.produit_id = p.id
+                   LEFT JOIN categories   c ON c.id = p.categorie_id
+                   LEFT JOIN fournisseurs f ON f.id = p.fournisseur_id
+                   LEFT JOIN stocks       s ON s.produit_id = p.id
                    WHERE p.actif = 1';
         $params = [];
 
@@ -41,6 +44,7 @@ class ProduitController {
         }
         if ($cat)    { $sql .= ' AND c.nom = ?';          $params[] = $cat; }
         if ($marque) { $sql .= ' AND p.marque LIKE ?';    $params[] = "%$marque%"; }
+        if ($fournisseur) { $sql .= ' AND p.fournisseur_id = ?'; $params[] = $fournisseur; }
         if ($statut === 'rupture')  $sql .= ' AND s.quantite = 0';
         if ($statut === 'critique') $sql .= ' AND s.quantite > 0 AND s.quantite <= p.seuil_alerte';
         if ($statut === 'normal')   $sql .= ' AND s.quantite > p.seuil_alerte';
@@ -146,16 +150,18 @@ class ProduitController {
 
         $stmt = $this->pdo->prepare(
             'INSERT INTO produits
-             (nom, code_barre, sku, marque, categorie_id,
+             (nom, description, code_barre, sku, marque, categorie_id, fournisseur_id,
               prix_achat, prix_vente, tva, seuil_alerte, emplacement, image_url)
-             VALUES (?,?,?,?,?,?,?,?,?,?,?)'
+             VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)'
         );
         $stmt->execute([
             $d['nom'],
+            $d['description']  ?? null,
             $d['code_barre']   ?? null,
             $d['sku']          ?? null,
             $d['marque']       ?? null,
             $catId,
+            $d['fournisseur_id'] ?: null,
             $d['prix_achat']   ?? 0,
             $d['prix_vente'],
             $d['tva']          ?? 18,
@@ -203,14 +209,16 @@ class ProduitController {
 
         $this->pdo->prepare(
             'UPDATE produits
-             SET nom=?, code_barre=?, marque=?, categorie_id=?,
+             SET nom=?, description=?, code_barre=?, marque=?, categorie_id=?, fournisseur_id=?,
                  prix_achat=?, prix_vente=?, seuil_alerte=?, emplacement=?, image_url=?
              WHERE id = ?'
         )->execute([
             $d['nom'],
+            $d['description']  ?? null,
             $d['code_barre']   ?? null,
             $d['marque']       ?? null,
             $catId,
+            $d['fournisseur_id'] ?: null,
             $d['prix_achat']   ?? 0,
             $d['prix_vente'],
             $d['seuil_alerte'] ?? 5,

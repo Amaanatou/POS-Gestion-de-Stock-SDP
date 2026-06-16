@@ -25,7 +25,9 @@ class StockController {
                  LEFT JOIN categories c ON c.id = p.categorie_id
                  $where";
 
-        $select = "SELECT s.produit_id, s.quantite, s.updated_at,
+        $select = "SELECT s.produit_id, s.quantite, s.reserve, s.commande,
+                          (s.quantite - s.reserve + s.commande) AS stock_virtuel,
+                          s.updated_at,
                           p.nom, p.code_barre, p.seuil_alerte, p.prix_vente,
                           c.nom AS categorie,
                           CASE WHEN s.quantite = 0               THEN 'rupture'
@@ -237,6 +239,39 @@ class StockController {
             'success'        => true,
             'quantite_avant' => $avant,
             'quantite_apres' => $newQt,
+        ]);
+    }
+
+    // Mettre à jour le stock virtuel : réservations + commandes en cours (§2.1)
+    // Stock virtuel = stock réel − réservé + en commande
+    public function virtuel(): void {
+        $user = auth();
+        autoriser(['manager', 'admin'], $user);
+        $d        = json_decode(file_get_contents('php://input'), true);
+        $pid      = (int)($d['produit_id'] ?? 0);
+        $reserve  = max(0, (int)($d['reserve']  ?? 0));
+        $commande = max(0, (int)($d['commande'] ?? 0));
+
+        if (!$pid) {
+            http_response_code(400);
+            echo json_encode(['success' => false, 'message' => 'produit_id requis']);
+            return;
+        }
+
+        $this->pdo->prepare('UPDATE stocks SET reserve = ?, commande = ? WHERE produit_id = ?')
+                  ->execute([$reserve, $commande, $pid]);
+
+        $sq = $this->pdo->prepare('SELECT quantite FROM stocks WHERE produit_id = ?');
+        $sq->execute([$pid]);
+        $reel = (int)$sq->fetchColumn();
+
+        journaliser($this->pdo, $user['id'], 'ajustement_stock',
+            'Produit #' . $pid, "Stock virtuel : réservé=$reserve, commande=$commande");
+
+        echo json_encode([
+            'success'       => true,
+            'message'       => 'Stock virtuel mis à jour',
+            'stock_virtuel' => $reel - $reserve + $commande,
         ]);
     }
 
