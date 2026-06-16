@@ -17,6 +17,7 @@ class EmailController {
         $d       = json_decode(file_get_contents('php://input'), true);
         $venteId = (int)($d['vente_id'] ?? 0);
         $email   = trim($d['email'] ?? '');
+        $image   = $d['image'] ?? '';
 
         if (!$venteId || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
             http_response_code(400);
@@ -68,6 +69,17 @@ class EmailController {
             $mail->Subject = 'Votre reçu SunuStock — ' . $vente['numero'];
             $mail->Body    = $this->html($vente, $lignes);
             $mail->AltBody = 'Reçu ' . $vente['numero'] . ' — Total : ' . $this->f($vente['total_ttc']) . ' FCFA';
+
+            // Pièce jointe : le ticket en image PNG (téléchargeable par le client)
+            if ($image) {
+                if (strpos($image, 'base64,') !== false) {
+                    $image = explode('base64,', $image, 2)[1];
+                }
+                $raw = base64_decode($image, true);
+                if ($raw) {
+                    $mail->addStringAttachment($raw, 'recu-' . $vente['numero'] . '.png', 'base64', 'image/png');
+                }
+            }
 
             $mail->send();
             echo json_encode(['success' => true, 'message' => 'Reçu envoyé à ' . $email]);
