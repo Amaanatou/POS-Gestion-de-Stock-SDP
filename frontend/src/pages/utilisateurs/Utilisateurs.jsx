@@ -8,6 +8,7 @@ import {
   getUtilisateurs, creerUtilisateur, modifierUtilisateur, basculerUtilisateur,
 } from '../../config/api';
 import { useAuth } from '../../context/AuthContext';
+import EntetePage from '../../components/ui/EntetePage';
 
 // Badge de rôle
 function RoleBadge({ role }) {
@@ -181,14 +182,18 @@ export default function Utilisateurs() {
 
   return (
     <div>
-      <div className='flex items-center justify-between mb-6'>
-        <h1 className='text-2xl font-bold text-gray-800'>Gestion du personnel</h1>
-        <button onClick={() => setModal('ajout')}
-          className='flex items-center gap-2 bg-[#FF6B35] hover:bg-orange-600
-                     text-white font-bold px-4 py-2.5 rounded-lg transition-colors'>
-          <Plus size={18} /> Nouveau compte
-        </button>
-      </div>
+      <EntetePage
+        icone={UserCog}
+        titre='Gestion du personnel'
+        description='Comptes et rôles de votre équipe : caissiers, managers et administrateurs.'
+        actions={
+          <button onClick={() => setModal('ajout')}
+            className='flex items-center gap-2 bg-[#FF6B35] hover:bg-orange-600
+                       text-white font-bold px-4 py-2.5 rounded-lg transition-colors'>
+            <Plus size={18} /> Nouveau compte
+          </button>
+        }
+      />
 
       <div className='relative mb-5 max-w-md'>
         <Search size={15} className='absolute left-3 top-3 text-gray-400' />
@@ -198,7 +203,7 @@ export default function Utilisateurs() {
                      focus:outline-none focus:ring-2 focus:ring-[#2196F3]' />
       </div>
 
-      <div className='bg-white rounded-xl shadow overflow-hidden'>
+      <div className='bg-white rounded-2xl shadow-sm ring-1 ring-gray-100 overflow-hidden'>
         <table className='w-full'>
           <thead className='bg-[#1E3A5F] text-white text-sm'>
             <tr>

@@ -15,7 +15,7 @@ const TOUS_LES_MENUS = [
   { to: '/mouvements', label: 'Mouvements',       icon: ArrowLeftRight,  roles: ['admin','manager'] },
   { to: '/alertes',    label: 'Alertes',          icon: Bell,            roles: ['admin','manager'] },
   { to: '/caisse',     label: 'Caisse POS',       icon: ShoppingCart,    roles: ['admin','manager','caissier'] },
-  { to: '/sessions-caisse', label: 'Ouverture caisse', icon: Wallet,     roles: ['admin','manager'] },
+  { to: '/sessions-caisse', label: 'Ouverture caisse', icon: Wallet,     roles: ['admin','manager','caissier'] },
   { to: '/ventes',     label: 'Historique ventes',icon: Receipt,         roles: ['admin','manager'] },
   { to: '/fournisseurs',label:'Fournisseurs',     icon: Truck,           roles: ['admin','manager'] },
   { to: '/clients',     label:'Clients',          icon: Users,           roles: ['admin','manager'] },
@@ -33,7 +33,7 @@ export default function Sidebar() {
     <aside className='w-64 bg-[#1E3A5F] text-white flex flex-col shadow-xl'>
       <div className='p-6 border-b border-white/10 flex-shrink-0'>
         <Logo size={36} variant='light' />
-        <p className='text-xs text-white/50 mt-1'>Gestion de Stock PME</p>
+        <p className='text-[11px] text-white/45 mt-1 italic'>Vendez malin, gérez sereinement</p>
       </div>
       <nav className='flex-1 min-h-0 overflow-y-auto sidebar-scroll p-4 space-y-1'>
         {nav.map(({ to, label, icon: Icon }) => (

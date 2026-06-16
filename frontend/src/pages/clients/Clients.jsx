@@ -6,6 +6,7 @@ import toast from 'react-hot-toast';
 import QRCode from 'qrcode';
 import { Plus, Pencil, Search, X, QrCode, Printer, Star, Crown, User, Gift } from 'lucide-react';
 import { getClients, creerClient, modifierClient, convertirPoints } from '../../config/api';
+import EntetePage from '../../components/ui/EntetePage';
 
 // Préfixe encodé dans le QR pour identifier un client SunuStock
 export const QR_PREFIXE = 'SUNUCLIENT:';
@@ -299,14 +300,19 @@ export default function Clients() {
 
   return (
     <div>
-      <div className='flex items-center justify-between mb-6'>
-        <h1 className='text-2xl font-bold text-gray-800'>Clients fidélité</h1>
-        <button onClick={() => setModal('ajout')}
-          className='flex items-center gap-2 bg-[#FF6B35] hover:bg-orange-600
-                     text-white font-bold px-4 py-2.5 rounded-lg transition-colors'>
-          <Plus size={18} /> Nouveau client
-        </button>
-      </div>
+      <EntetePage
+        icone={Gift}
+        accent='orange'
+        titre='Clients fidélité'
+        description="Programme de fidélité : QR codes, niveaux et bons d'achat."
+        actions={
+          <button onClick={() => setModal('ajout')}
+            className='flex items-center gap-2 bg-[#FF6B35] hover:bg-orange-600
+                       text-white font-bold px-4 py-2.5 rounded-lg transition-colors'>
+            <Plus size={18} /> Nouveau client
+          </button>
+        }
+      />
 
       <div className='relative mb-5 max-w-md'>
         <Search size={15} className='absolute left-3 top-3 text-gray-400' />
@@ -316,7 +322,7 @@ export default function Clients() {
                      focus:outline-none focus:ring-2 focus:ring-[#2196F3]' />
       </div>
 
-      <div className='bg-white rounded-xl shadow overflow-hidden'>
+      <div className='bg-white rounded-2xl shadow-sm ring-1 ring-gray-100 overflow-hidden'>
         <table className='w-full'>
           <thead className='bg-[#1E3A5F] text-white text-sm'>
             <tr>

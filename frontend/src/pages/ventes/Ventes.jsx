@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import toast from 'react-hot-toast';
 import { Search, Eye, XCircle, Receipt, Ban, CheckCircle2, Undo2 } from 'lucide-react';
 import { getVentes, getVenteDetails, annulerVente, retournerVente } from '../../config/api';
+import EntetePage from '../../components/ui/EntetePage';
 
 const fmt = (n) => Number(n || 0).toLocaleString('fr-FR');
 
@@ -273,13 +274,17 @@ export default function Ventes() {
 
   return (
     <div>
-      <div className='flex items-center justify-between mb-6'>
-        <h1 className='text-2xl font-bold text-gray-800'>Historique des ventes</h1>
-        <div className='text-right'>
-          <p className='text-xs text-gray-400'>Total encaissé (validées)</p>
-          <p className='text-lg font-bold text-[#1E3A5F]'>{fmt(totalEncaisse)} FCFA</p>
-        </div>
-      </div>
+      <EntetePage
+        icone={Receipt}
+        titre='Historique des ventes'
+        description="Toutes les transactions, avec annulation et retours d'articles."
+        actions={
+          <div className='text-right'>
+            <p className='text-xs text-gray-400'>Total encaissé (validées)</p>
+            <p className='text-lg font-bold text-[#1E3A5F]'>{fmt(totalEncaisse)} FCFA</p>
+          </div>
+        }
+      />
 
       {/* Filtres */}
       <div className='flex flex-wrap gap-3 mb-5'>
@@ -304,7 +309,7 @@ export default function Ventes() {
       </div>
 
       {/* Tableau */}
-      <div className='bg-white rounded-xl shadow overflow-hidden'>
+      <div className='bg-white rounded-2xl shadow-sm ring-1 ring-gray-100 overflow-hidden'>
         <table className='w-full'>
           <thead className='bg-[#1E3A5F] text-white text-sm'>
             <tr>
