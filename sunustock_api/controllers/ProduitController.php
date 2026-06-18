@@ -17,24 +17,34 @@ class ProduitController {
         auth();
         $search = $_GET['search']    ?? '';
         $cat    = $_GET['categorie'] ?? '';
+        $marque = $_GET['marque']    ?? '';
+        $fournisseur = $_GET['fournisseur'] ?? '';
         $statut = $_GET['statut']    ?? '';
 
-        $sql    = 'SELECT p.id, p.nom, p.code_barre, p.sku, p.marque,
+        $sql    = 'SELECT p.id, p.nom, p.description, p.code_barre, p.sku, p.marque,
                           p.prix_achat, p.prix_vente, p.tva,
                           p.seuil_alerte, p.image_url, p.emplacement,
                           c.nom AS categorie,
+                          p.fournisseur_id, f.nom AS fournisseur,
                           s.quantite,
                           CASE WHEN s.quantite = 0              THEN "rupture"
                                WHEN s.quantite <= p.seuil_alerte THEN "critique"
                                ELSE "normal" END AS statut_stock
                    FROM produits p
-                   LEFT JOIN categories c ON c.id = p.categorie_id
-                   LEFT JOIN stocks     s ON s.produit_id = p.id
+                   LEFT JOIN categories   c ON c.id = p.categorie_id
+                   LEFT JOIN fournisseurs f ON f.id = p.fournisseur_id
+                   LEFT JOIN stocks       s ON s.produit_id = p.id
                    WHERE p.actif = 1';
         $params = [];
 
-        if ($search) { $sql .= ' AND p.nom LIKE ?';      $params[] = "%$search%"; }
+        if ($search) {
+            $sql .= ' AND (p.nom LIKE ? OR p.code_barre LIKE ?)';
+            $params[] = "%$search%";
+            $params[] = "$search%";   // préfixe sur le code-barres (utilise l'index)
+        }
         if ($cat)    { $sql .= ' AND c.nom = ?';          $params[] = $cat; }
+        if ($marque) { $sql .= ' AND p.marque LIKE ?';    $params[] = "%$marque%"; }
+        if ($fournisseur) { $sql .= ' AND p.fournisseur_id = ?'; $params[] = $fournisseur; }
         if ($statut === 'rupture')  $sql .= ' AND s.quantite = 0';
         if ($statut === 'critique') $sql .= ' AND s.quantite > 0 AND s.quantite <= p.seuil_alerte';
         if ($statut === 'normal')   $sql .= ' AND s.quantite > p.seuil_alerte';
@@ -140,16 +150,18 @@ class ProduitController {
 
         $stmt = $this->pdo->prepare(
             'INSERT INTO produits
-             (nom, code_barre, sku, marque, categorie_id,
+             (nom, description, code_barre, sku, marque, categorie_id, fournisseur_id,
               prix_achat, prix_vente, tva, seuil_alerte, emplacement, image_url)
-             VALUES (?,?,?,?,?,?,?,?,?,?,?)'
+             VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)'
         );
         $stmt->execute([
             $d['nom'],
+            $d['description']  ?? null,
             $d['code_barre']   ?? null,
             $d['sku']          ?? null,
             $d['marque']       ?? null,
             $catId,
+            $d['fournisseur_id'] ?: null,
             $d['prix_achat']   ?? 0,
             $d['prix_vente'],
             $d['tva']          ?? 18,
@@ -197,14 +209,16 @@ class ProduitController {
 
         $this->pdo->prepare(
             'UPDATE produits
-             SET nom=?, code_barre=?, marque=?, categorie_id=?,
+             SET nom=?, description=?, code_barre=?, marque=?, categorie_id=?, fournisseur_id=?,
                  prix_achat=?, prix_vente=?, seuil_alerte=?, emplacement=?, image_url=?
              WHERE id = ?'
         )->execute([
             $d['nom'],
+            $d['description']  ?? null,
             $d['code_barre']   ?? null,
             $d['marque']       ?? null,
             $catId,
+            $d['fournisseur_id'] ?: null,
             $d['prix_achat']   ?? 0,
             $d['prix_vente'],
             $d['seuil_alerte'] ?? 5,
@@ -228,6 +242,40 @@ class ProduitController {
         autoriser(['admin'], $user);
         $this->pdo->prepare('UPDATE produits SET actif = 0 WHERE id = ?')->execute([$id]);
         echo json_encode(['success' => true, 'message' => 'Produit archivé']);
+    }
+
+    // Historique des ventes d'un produit (back-office) — manager/admin
+    public function ventes(int $id): void {
+        $user = auth();
+        autoriser(['manager', 'admin'], $user);
+
+        $stmt = $this->pdo->prepare(
+            'SELECT v.numero, v.created_at, v.statut,
+                    lv.quantite, lv.prix_unitaire, lv.sous_total
+             FROM lignes_ventes lv
+             JOIN ventes v ON v.id = lv.vente_id
+             WHERE lv.produit_id = ?
+             ORDER BY v.created_at DESC
+             LIMIT 100'
+        );
+        $stmt->execute([$id]);
+        $lignes = $stmt->fetchAll();
+
+        // Résumé sur les ventes validées uniquement
+        $r = $this->pdo->prepare(
+            'SELECT COALESCE(SUM(lv.quantite), 0)  AS total_qte,
+                    COALESCE(SUM(lv.sous_total), 0) AS total_ca
+             FROM lignes_ventes lv
+             JOIN ventes v ON v.id = lv.vente_id
+             WHERE lv.produit_id = ? AND v.statut = "validee"'
+        );
+        $r->execute([$id]);
+
+        echo json_encode([
+            'success' => true,
+            'data'    => $lignes,
+            'resume'  => $r->fetch(),
+        ]);
     }
 
     // ── Helpers ─────────────────────────────────────────────

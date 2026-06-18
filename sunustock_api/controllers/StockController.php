@@ -6,19 +6,60 @@ class StockController {
 
     public function lister(): void {
         auth();
-        $rows = $this->pdo->query(
-            'SELECT s.produit_id, s.quantite, s.updated_at,
-                    p.nom, p.code_barre, p.seuil_alerte, p.prix_vente,
-                    c.nom AS categorie,
-                    CASE WHEN s.quantite = 0               THEN "rupture"
-                         WHEN s.quantite <= p.seuil_alerte THEN "critique"
-                         ELSE "normal" END AS statut
-             FROM stocks s
-             JOIN produits    p ON p.id = s.produit_id
-             LEFT JOIN categories c ON c.id = p.categorie_id
-             WHERE p.actif = 1
-             ORDER BY statut ASC, p.nom ASC'
-        )->fetchAll();
+        $search = $_GET['search'] ?? '';
+        $statut = $_GET['statut'] ?? '';
+
+        $where  = 'WHERE p.actif = 1';
+        $params = [];
+        if ($search) {
+            $where .= ' AND (p.nom LIKE ? OR p.code_barre LIKE ?)';
+            $params[] = "%$search%";
+            $params[] = "$search%";
+        }
+        if ($statut === 'rupture')  $where .= ' AND s.quantite = 0';
+        if ($statut === 'critique') $where .= ' AND s.quantite > 0 AND s.quantite <= p.seuil_alerte';
+        if ($statut === 'normal')   $where .= ' AND s.quantite > p.seuil_alerte';
+
+        $base = "FROM stocks s
+                 JOIN produits p ON p.id = s.produit_id
+                 LEFT JOIN categories c ON c.id = p.categorie_id
+                 $where";
+
+        $select = "SELECT s.produit_id, s.quantite, s.reserve, s.commande,
+                          (s.quantite - s.reserve + s.commande) AS stock_virtuel,
+                          s.updated_at,
+                          p.nom, p.code_barre, p.seuil_alerte, p.prix_vente,
+                          c.nom AS categorie,
+                          CASE WHEN s.quantite = 0               THEN 'rupture'
+                               WHEN s.quantite <= p.seuil_alerte THEN 'critique'
+                               ELSE 'normal' END AS statut
+                   $base
+                   ORDER BY statut ASC, p.nom ASC";
+
+        // Pagination si demandée
+        if (isset($_GET['page'])) {
+            $page    = max(1, (int)$_GET['page']);
+            $perPage = min(100, max(5, (int)($_GET['per_page'] ?? 15)));
+            $stc = $this->pdo->prepare("SELECT COUNT(*) $base");
+            $stc->execute($params);
+            $total  = (int)$stc->fetchColumn();
+            $offset = ($page - 1) * $perPage;
+            $stmt = $this->pdo->prepare("$select LIMIT $perPage OFFSET $offset");
+            $stmt->execute($params);
+            echo json_encode([
+                'success'     => true,
+                'data'        => $stmt->fetchAll(),
+                'total'       => $total,
+                'page'        => $page,
+                'per_page'    => $perPage,
+                'total_pages' => (int)ceil($total / $perPage),
+            ]);
+            return;
+        }
+
+        $stmt = $this->pdo->prepare($select);
+        $stmt->execute($params);
+        $rows = $stmt->fetchAll();
         echo json_encode(['success' => true, 'data' => $rows, 'total' => count($rows)]);
     }
 
@@ -198,6 +239,39 @@ class StockController {
             'success'        => true,
             'quantite_avant' => $avant,
             'quantite_apres' => $newQt,
+        ]);
+    }
+
+    // Mettre à jour le stock virtuel : réservations + commandes en cours (§2.1)
+    // Stock virtuel = stock réel − réservé + en commande
+    public function virtuel(): void {
+        $user = auth();
+        autoriser(['manager', 'admin'], $user);
+        $d        = json_decode(file_get_contents('php://input'), true);
+        $pid      = (int)($d['produit_id'] ?? 0);
+        $reserve  = max(0, (int)($d['reserve']  ?? 0));
+        $commande = max(0, (int)($d['commande'] ?? 0));
+
+        if (!$pid) {
+            http_response_code(400);
+            echo json_encode(['success' => false, 'message' => 'produit_id requis']);
+            return;
+        }
+
+        $this->pdo->prepare('UPDATE stocks SET reserve = ?, commande = ? WHERE produit_id = ?')
+                  ->execute([$reserve, $commande, $pid]);
+
+        $sq = $this->pdo->prepare('SELECT quantite FROM stocks WHERE produit_id = ?');
+        $sq->execute([$pid]);
+        $reel = (int)$sq->fetchColumn();
+
+        journaliser($this->pdo, $user['id'], 'ajustement_stock',
+            'Produit #' . $pid, "Stock virtuel : réservé=$reserve, commande=$commande");
+
+        echo json_encode([
+            'success'       => true,
+            'message'       => 'Stock virtuel mis à jour',
+            'stock_virtuel' => $reel - $reserve + $commande,
         ]);
     }
 

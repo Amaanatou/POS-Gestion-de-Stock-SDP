@@ -35,6 +35,7 @@ CREATE TABLE produits (
     sku          VARCHAR(50) UNIQUE,
     marque       VARCHAR(100),
     categorie_id INT,
+    fournisseur_id INT,
     prix_achat   DECIMAL(12,2) DEFAULT 0.00,
     prix_vente   DECIMAL(12,2) DEFAULT 0.00,
     tva          DECIMAL(5,2)  DEFAULT 18.00,
@@ -44,15 +45,19 @@ CREATE TABLE produits (
     actif        TINYINT(1) DEFAULT 1,
     created_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    FOREIGN KEY (categorie_id) REFERENCES categories(id) ON DELETE SET NULL,
-    INDEX idx_code_barre (code_barre),
-    INDEX idx_nom        (nom)
+    FOREIGN KEY (categorie_id)   REFERENCES categories(id)   ON DELETE SET NULL,
+    FOREIGN KEY (fournisseur_id) REFERENCES fournisseurs(id) ON DELETE SET NULL,
+    INDEX idx_code_barre  (code_barre),
+    INDEX idx_nom         (nom),
+    INDEX idx_fournisseur (fournisseur_id)
 );
 
 CREATE TABLE stocks (
     id         INT AUTO_INCREMENT PRIMARY KEY,
     produit_id INT NOT NULL UNIQUE,
     quantite   INT DEFAULT 0,
+    reserve    INT DEFAULT 0,
+    commande   INT DEFAULT 0,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     FOREIGN KEY (produit_id) REFERENCES produits(id) ON DELETE CASCADE
 );
@@ -166,6 +171,21 @@ CREATE TABLE journal_actions (
     INDEX idx_journal_date (created_at)
 );
 
+-- Sessions de caisse : ouverture/fermeture + écarts (§2.2)
+CREATE TABLE sessions_caisse (
+    id              INT AUTO_INCREMENT PRIMARY KEY,
+    utilisateur_id  INT NOT NULL,
+    fond_initial    DECIMAL(12,2) NOT NULL DEFAULT 0,
+    montant_attendu DECIMAL(12,2),
+    montant_compte  DECIMAL(12,2),
+    ecart           DECIMAL(12,2),
+    note            VARCHAR(255),
+    statut          ENUM('ouverte','fermee') DEFAULT 'ouverte',
+    opened_at       TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    closed_at       TIMESTAMP NULL,
+    FOREIGN KEY (utilisateur_id) REFERENCES utilisateurs(id) ON DELETE CASCADE
+);
+
 -- ============================================================
 -- DONNÉES ENRICHIES
 -- ============================================================
@@ -226,6 +246,9 @@ INSERT INTO produits (nom,code_barre,sku,marque,categorie_id,prix_achat,prix_ven
   ('Crème hydratante Nivea 250ml',  '4005808729951','CRE-250ML-032','Nivea',     7, 2000, 3200,18, 8,'Allée I - Rayon 1'),
   ('Huile de coco bio 200ml',       '6009004567890','HCO-200ML-033','Bio Sn',    7, 1200, 2000,18,10,'Allée I - Rayon 2');
 
+-- Assignation d'un fournisseur à chaque produit (démo, réparti sur les 7 fournisseurs)
+UPDATE produits SET fournisseur_id = ((id % 7) + 1);
+
 -- STOCKS
 INSERT INTO stocks (produit_id, quantite) VALUES
   (1,85),(2,12),(3,42),(4,18),(5,4),(6,3),(7,78),(8,55),
@@ -233,6 +256,9 @@ INSERT INTO stocks (produit_id, quantite) VALUES
   (16,0),(17,7),(18,5),(19,30),(20,2),(21,25),(22,4),
   (23,1),(24,8),(25,0),(26,5),(27,24),(28,200),(29,45),
   (30,60),(31,6),(32,18),(33,12);
+
+-- Stock virtuel de démo : quelques réservations et commandes en cours
+UPDATE stocks SET reserve = (produit_id % 4), commande = (produit_id % 7) WHERE produit_id <= 33;
 
 -- ALERTES
 INSERT INTO alertes_stock (produit_id,type_alerte,quantite_actuelle,seuil,lue) VALUES
@@ -249,8 +275,8 @@ INSERT INTO alertes_stock (produit_id,type_alerte,quantite_actuelle,seuil,lue) V
 
 -- UTILISATEURS (mot de passe : password)
 INSERT INTO utilisateurs (nom,prenom,email,mot_de_passe,role) VALUES
-  ('Gaye',   'Ndeye Maty','ndeye@sunustock.sn',   '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi','admin'),
-  ('Drame',  'Manetou',   'manetou@sunustock.sn',  '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi','manager'),
+  ('Gaye',   'Ndeye Maty','ndeye@sunustock.sn',   '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi','manager'),
+  ('Drame',  'Manetou',   'manetou@sunustock.sn',  '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi','admin'),
   ('Diop',   'Fatou',     'fatou@sunustock.sn',    '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi','caissier'),
   ('Dieng',  'Mouhamed',  'mouhamed@sunustock.sn', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi','caissier'),
   ('Ndiaye', 'Aminata',   'aminata@sunustock.sn',  '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi','manager');

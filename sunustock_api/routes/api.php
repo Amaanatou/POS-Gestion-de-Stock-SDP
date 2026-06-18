@@ -9,6 +9,8 @@ require_once __DIR__ . '/../controllers/ClientController.php';
 require_once __DIR__ . '/../controllers/FournisseurController.php';
 require_once __DIR__ . '/../controllers/UtilisateurController.php';
 require_once __DIR__ . '/../controllers/JournalController.php';
+require_once __DIR__ . '/../controllers/SessionCaisseController.php';
+require_once __DIR__ . '/../controllers/EmailController.php';
 
 $method   = $_SERVER['REQUEST_METHOD'];
 $uri      = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
@@ -36,6 +38,12 @@ if ($base === 'auth') {
     exit;
 }
 
+// ── EMAIL (reçu dématérialisé) ───────────────────────────────
+if ($base === 'email') {
+    $c = new EmailController($pdo);
+    if ($method === 'POST' && $sub === 'recu') { $c->envoyerRecu(); exit; }
+}
+
 // ── PRODUITS ─────────────────────────────────────────────────
 if ($base === 'produits') {
     $c = new ProduitController($pdo);
@@ -53,6 +61,8 @@ if ($base === 'produits') {
         if ($method === 'POST')   { $c->ajouterImage($sub);           exit; }
         if ($method === 'DELETE') { $c->supprimerImage($sub, $imgId); exit; }
     }
+    // Historique des ventes d'un produit (produit/{id}/ventes)
+    if ($method === 'GET' && is_numeric($sub) && $subsub === 'ventes') { $c->ventes($sub); exit; }
     if ($method === 'GET'    && !$sub)            { $c->lister();          exit; }
     if ($method === 'GET'    && $sub === 'barre') { $c->parBarre($subsub); exit; }
     if ($method === 'GET'    && is_numeric($sub)) { $c->obtenir($sub);     exit; }
@@ -69,6 +79,7 @@ if ($base === 'stocks') {
     if ($method === 'POST' && $sub === 'entree')  { $c->entree();      exit; }
     if ($method === 'POST' && $sub === 'sortie')  { $c->sortie();      exit; }
     if ($method === 'POST' && $sub === 'ajust')   { $c->ajustement();  exit; }
+    if ($method === 'POST' && $sub === 'virtuel') { $c->virtuel();     exit; }
 }
 
 // ── MOUVEMENTS ───────────────────────────────────────────────
@@ -93,6 +104,7 @@ if ($base === 'ventes') {
     if ($method === 'GET'  && is_numeric($sub) && $subsub === 'recu')    { $c->recu($sub);     exit; }
     if ($method === 'GET'  && is_numeric($sub) && !$subsub)              { $c->details($sub);  exit; }
     if ($method === 'POST' && is_numeric($sub) && $subsub === 'annuler') { $c->annuler($sub);  exit; }
+    if ($method === 'POST' && is_numeric($sub) && $subsub === 'retour')  { $c->retour($sub);   exit; }
 }
 
 // ── DASHBOARD ────────────────────────────────────────────────
@@ -108,12 +120,24 @@ if ($base === 'clients') {
     if ($method === 'GET'  && $sub === 'recherche')  { $c->rechercher($subsub); exit; }
     if ($method === 'POST' && !$sub)                 { $c->creer();            exit; }
     if ($method === 'PUT'  && is_numeric($sub))      { $c->modifier($sub);     exit; }
+    if ($method === 'POST' && is_numeric($sub)
+        && $subsub === 'convertir')                  { $c->convertirPoints($sub); exit; }
 }
 
 // ── JOURNAL D'AUDIT (admin) ──────────────────────────────────
 if ($base === 'journal' && $method === 'GET') {
     (new JournalController($pdo))->lister();
     exit;
+}
+
+// ── SESSIONS DE CAISSE (écarts) ──────────────────────────────
+if ($base === 'caisse-sessions') {
+    $c = new SessionCaisseController($pdo);
+    if ($method === 'GET'  && $sub === 'courante')         { $c->courante();   exit; }
+    if ($method === 'GET'  && !$sub)                        { $c->lister();     exit; }
+    if ($method === 'POST' && $sub === 'ouvrir')           { $c->ouvrir();     exit; }
+    if ($method === 'POST' && is_numeric($sub)
+        && $subsub === 'fermer')                           { $c->fermer($sub); exit; }
 }
 
 // ── UTILISATEURS (gestion du personnel — admin) ──────────────
