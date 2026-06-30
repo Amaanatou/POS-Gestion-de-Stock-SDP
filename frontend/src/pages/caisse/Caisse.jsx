@@ -4,7 +4,7 @@ import { useForm } from 'react-hook-form';
 import toast from 'react-hot-toast';
 import {
   Search, Plus, Minus, Trash2, ShoppingCart,
-  CreditCard, Banknote, X, CheckCircle, Printer, ScanLine, FileText, Mail, Download, WifiOff, RefreshCw,
+  CreditCard, Banknote, Smartphone, X, CheckCircle, Printer, ScanLine, FileText, Mail, Download, WifiOff, RefreshCw,
 } from 'lucide-react';
 import { genererFacturePDF } from '../../utils/facturePDF';
 import html2canvas from 'html2canvas';
@@ -21,10 +21,28 @@ import Logo from '../../components/ui/Logo';
 //  Modal Paiement
 // ─────────────────────────────────────────────────────────────
 function ModalPaiement({ total, onFermer, onConfirmer }) {
-  const [mode, setMode]       = useState('especes'); // especes | carte
+  const [mode, setMode]       = useState('especes'); // especes | carte | mobile_money
   const [montant, setMontant] = useState('');
+  const [operateur, setOperateur] = useState(''); // wave | orange | free (Mobile Money)
   const monnaie = mode === 'especes' ? Math.max(0, Number(montant) - total) : 0;
-  const peutPayer = mode === 'carte' || Number(montant) >= total;
+  const peutPayer =
+    mode === 'especes'      ? Number(montant) >= total :
+    mode === 'mobile_money' ? !!operateur :
+    true; // carte
+
+  // Modes de règlement proposés en caisse
+  const modes = [
+    { id: 'especes',      label: 'Espèces',        icone: Banknote },
+    { id: 'carte',        label: 'Carte bancaire', icone: CreditCard },
+    { id: 'mobile_money', label: 'Mobile Money',   icone: Smartphone },
+  ];
+  // Opérateurs Mobile Money (affichage ; intégration de l'encaissement à venir)
+  const operateurs = [
+    { id: 'wave',   nom: 'Wave',         couleur: '#1DC4FF' },
+    { id: 'orange', nom: 'Orange Money', couleur: '#FF7900' },
+    { id: 'free',   nom: 'Free Money',   couleur: '#E2001A' },
+  ];
+  const choisirMode = (m) => { setMode(m); setMontant(''); if (m !== 'mobile_money') setOperateur(''); };
 
   return (
     <div className='fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4'>
@@ -47,28 +65,57 @@ function ModalPaiement({ total, onFermer, onConfirmer }) {
           </div>
 
           {/* Mode de paiement */}
-          <div className='grid grid-cols-2 gap-3'>
-            <button
-              onClick={() => setMode('especes')}
-              className={`flex items-center justify-center gap-2 py-3 rounded-lg
-                          border-2 font-medium text-sm transition-all
-                          ${mode === 'especes'
-                            ? 'border-[#1E3A5F] bg-blue-50 text-[#1E3A5F]'
-                            : 'border-gray-200 text-gray-500 hover:border-gray-300'}`}
-            >
-              <Banknote size={18} /> Espèces
-            </button>
-            <button
-              onClick={() => { setMode('carte'); setMontant(''); }}
-              className={`flex items-center justify-center gap-2 py-3 rounded-lg
-                          border-2 font-medium text-sm transition-all
-                          ${mode === 'carte'
-                            ? 'border-[#1E3A5F] bg-blue-50 text-[#1E3A5F]'
-                            : 'border-gray-200 text-gray-500 hover:border-gray-300'}`}
-            >
-              <CreditCard size={18} /> Carte / Mobile
-            </button>
+          <div className='grid grid-cols-3 gap-2'>
+            {modes.map(({ id, label, icone: Icone }) => (
+              <button
+                key={id}
+                onClick={() => choisirMode(id)}
+                className={`flex flex-col items-center justify-center gap-1.5 py-3 rounded-lg
+                            border-2 font-medium text-xs text-center transition-all
+                            ${mode === id
+                              ? 'border-[#1E3A5F] bg-blue-50 text-[#1E3A5F]'
+                              : 'border-gray-200 text-gray-500 hover:border-gray-300'}`}
+              >
+                <Icone size={20} /> {label}
+              </button>
+            ))}
           </div>
+
+          {/* Carte bancaire : information */}
+          {mode === 'carte' && (
+            <div className='bg-blue-50 border border-blue-100 rounded-lg p-3
+                            text-sm text-[#1E3A5F] flex items-center gap-2'>
+              <CreditCard size={18} /> Paiement par carte sur le terminal (TPE).
+            </div>
+          )}
+
+          {/* Mobile Money : choix de l'opérateur */}
+          {mode === 'mobile_money' && (
+            <div>
+              <label className='block text-sm font-medium text-gray-700 mb-2'>
+                Choisir l'opérateur
+              </label>
+              <div className='grid grid-cols-3 gap-2'>
+                {operateurs.map(op => (
+                  <button
+                    key={op.id}
+                    onClick={() => setOperateur(op.id)}
+                    style={operateur === op.id ? { backgroundColor: op.couleur, borderColor: op.couleur } : {}}
+                    className={`flex flex-col items-center justify-center gap-1.5 py-3 rounded-lg
+                                border-2 text-xs font-semibold transition-all
+                                ${operateur === op.id
+                                  ? 'text-white shadow'
+                                  : 'border-gray-200 text-gray-600 hover:border-gray-300'}`}
+                  >
+                    <Smartphone size={18} /> {op.nom}
+                  </button>
+                ))}
+              </div>
+              <p className='text-[11px] text-gray-400 mt-2 text-center'>
+                Encaissement Mobile Money — intégration à venir
+              </p>
+            </div>
+          )}
 
           {/* Montant reçu (espèces seulement) */}
           {mode === 'especes' && (
@@ -103,7 +150,7 @@ function ModalPaiement({ total, onFermer, onConfirmer }) {
           {/* Bouton confirmer */}
           <button
             disabled={!peutPayer}
-            onClick={() => onConfirmer(mode, Number(montant))}
+            onClick={() => onConfirmer(mode, Number(montant), operateur)}
             className='w-full bg-[#FF6B35] hover:bg-orange-600 disabled:opacity-40
                        text-white font-bold py-3 rounded-lg transition-colors
                        flex items-center justify-center gap-2 text-base'
@@ -145,11 +192,13 @@ function Recu({ vente, onFermer }) {
   const montantTVA = vente.totalTVA;
   const totalTTC   = vente.totalTTC;
 
-  const modeLabel = {
+  const operateurLabel = { wave: 'Wave', orange: 'Orange Money', free: 'Free Money' }[vente.operateur] || '';
+  const modeLabel = ({
     especes:      'Espèces',
     carte:        'Carte bancaire',
     mobile_money: 'Mobile Money',
-  }[vente.modePaiement] || vente.modePaiement;
+  }[vente.modePaiement] || vente.modePaiement)
+    + (vente.modePaiement === 'mobile_money' && operateurLabel ? ` — ${operateurLabel}` : '');
 
   const fmt = (n) => Number(n).toLocaleString('fr-FR');
   const nbArticles = vente.lignes.reduce((s, l) => s + l.quantite, 0);
@@ -594,7 +643,7 @@ export default function Caisse() {
   const totalTTC     = totalHT + totalTVA;
 
   // ── Finaliser la vente ────────────────────────────────────
-  const confirmerVente = async (modePaiement, montantRecu) => {
+  const confirmerVente = async (modePaiement, montantRecu, operateur) => {
     const lignes = panier.map(l => ({
       produit_id: l.produit.id,
       nom:        l.produit.nom,
@@ -608,7 +657,7 @@ export default function Caisse() {
     const recuBase = {
       lignes, totalHTBrut, remiseClient, tauxRemise,
       remiseManuelle: remiseManuelleAppliquee, remiseManuelleMontant,
-      totalHT, totalTVA, totalTTC, modePaiement, montantRecu,
+      totalHT, totalTVA, totalTTC, modePaiement, operateur, montantRecu,
       monnaie:  modePaiement === 'especes' ? Math.max(0, montantRecu - totalTTC) : 0,
       caissier: `${utilisateur?.prenom || ''} ${utilisateur?.nom || ''}`.trim(),
       date:     new Date(),

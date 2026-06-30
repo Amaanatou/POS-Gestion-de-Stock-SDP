@@ -139,9 +139,11 @@ export function genererFacturePDF(vente) {
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(9);
   doc.setTextColor(60, 60, 60);
-  const modeLabel = {
+  const operateurLabel = { wave: 'Wave', orange: 'Orange Money', free: 'Free Money' }[vente.operateur] || '';
+  const modeLabel = ({
     especes: 'Espèces', carte: 'Carte bancaire', mobile_money: 'Mobile Money',
-  }[vente.modePaiement] || vente.modePaiement;
+  }[vente.modePaiement] || vente.modePaiement)
+    + (vente.modePaiement === 'mobile_money' && operateurLabel ? ` (${operateurLabel})` : '');
   doc.text(`Mode de règlement : ${modeLabel}`, 14, yt);
   if (vente.modePaiement === 'especes') {
     doc.text(`Montant reçu : ${fmt(vente.montantRecu)} FCFA`, 14, yt + 5);
