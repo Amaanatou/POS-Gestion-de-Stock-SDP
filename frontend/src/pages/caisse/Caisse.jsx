@@ -4,9 +4,13 @@ import { useForm } from 'react-hook-form';
 import toast from 'react-hot-toast';
 import {
   Search, Plus, Minus, Trash2, ShoppingCart,
-  CreditCard, Banknote, X, CheckCircle, Printer, ScanLine,
+  CreditCard, Banknote, Smartphone, X, CheckCircle, Printer, ScanLine, FileText, Mail, Download, WifiOff, RefreshCw,
 } from 'lucide-react';
-import { getProduits, getProduitParBarre, creerVente, getAccessoires } from '../../config/api';
+import { genererFacturePDF } from '../../utils/facturePDF';
+import html2canvas from 'html2canvas';
+import QRCode from 'qrcode';
+import { getProduits, getProduitParBarre, creerVente, getAccessoires, envoyerRecuEmail } from '../../config/api';
+import { mettreEnAttente, synchroniser, nbEnAttente } from '../../utils/offline';
 import BarcodeScanner from '../../components/ui/BarcodeScanner';
 import ClientZone from './ClientZone';
 import AccessoiresPopup from './AccessoiresPopup';
@@ -17,10 +21,28 @@ import Logo from '../../components/ui/Logo';
 //  Modal Paiement
 // ─────────────────────────────────────────────────────────────
 function ModalPaiement({ total, onFermer, onConfirmer }) {
-  const [mode, setMode]       = useState('especes'); // especes | carte
+  const [mode, setMode]       = useState('especes'); // especes | carte | mobile_money
   const [montant, setMontant] = useState('');
+  const [operateur, setOperateur] = useState(''); // wave | orange | free (Mobile Money)
   const monnaie = mode === 'especes' ? Math.max(0, Number(montant) - total) : 0;
-  const peutPayer = mode === 'carte' || Number(montant) >= total;
+  const peutPayer =
+    mode === 'especes'      ? Number(montant) >= total :
+    mode === 'mobile_money' ? !!operateur :
+    true; // carte
+
+  // Modes de règlement proposés en caisse
+  const modes = [
+    { id: 'especes',      label: 'Espèces',        icone: Banknote },
+    { id: 'carte',        label: 'Carte bancaire', icone: CreditCard },
+    { id: 'mobile_money', label: 'Mobile Money',   icone: Smartphone },
+  ];
+  // Opérateurs Mobile Money (affichage ; intégration de l'encaissement à venir)
+  const operateurs = [
+    { id: 'wave',   nom: 'Wave',         couleur: '#1DC4FF' },
+    { id: 'orange', nom: 'Orange Money', couleur: '#FF7900' },
+    { id: 'free',   nom: 'Free Money',   couleur: '#E2001A' },
+  ];
+  const choisirMode = (m) => { setMode(m); setMontant(''); if (m !== 'mobile_money') setOperateur(''); };
 
   return (
     <div className='fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4'>
@@ -43,28 +65,57 @@ function ModalPaiement({ total, onFermer, onConfirmer }) {
           </div>
 
           {/* Mode de paiement */}
-          <div className='grid grid-cols-2 gap-3'>
-            <button
-              onClick={() => setMode('especes')}
-              className={`flex items-center justify-center gap-2 py-3 rounded-lg
-                          border-2 font-medium text-sm transition-all
-                          ${mode === 'especes'
-                            ? 'border-[#1E3A5F] bg-blue-50 text-[#1E3A5F]'
-                            : 'border-gray-200 text-gray-500 hover:border-gray-300'}`}
-            >
-              <Banknote size={18} /> Espèces
-            </button>
-            <button
-              onClick={() => { setMode('carte'); setMontant(''); }}
-              className={`flex items-center justify-center gap-2 py-3 rounded-lg
-                          border-2 font-medium text-sm transition-all
-                          ${mode === 'carte'
-                            ? 'border-[#1E3A5F] bg-blue-50 text-[#1E3A5F]'
-                            : 'border-gray-200 text-gray-500 hover:border-gray-300'}`}
-            >
-              <CreditCard size={18} /> Carte / Mobile
-            </button>
+          <div className='grid grid-cols-3 gap-2'>
+            {modes.map(({ id, label, icone: Icone }) => (
+              <button
+                key={id}
+                onClick={() => choisirMode(id)}
+                className={`flex flex-col items-center justify-center gap-1.5 py-3 rounded-lg
+                            border-2 font-medium text-xs text-center transition-all
+                            ${mode === id
+                              ? 'border-[#1E3A5F] bg-blue-50 text-[#1E3A5F]'
+                              : 'border-gray-200 text-gray-500 hover:border-gray-300'}`}
+              >
+                <Icone size={20} /> {label}
+              </button>
+            ))}
           </div>
+
+          {/* Carte bancaire : information */}
+          {mode === 'carte' && (
+            <div className='bg-blue-50 border border-blue-100 rounded-lg p-3
+                            text-sm text-[#1E3A5F] flex items-center gap-2'>
+              <CreditCard size={18} /> Paiement par carte sur le terminal (TPE).
+            </div>
+          )}
+
+          {/* Mobile Money : choix de l'opérateur */}
+          {mode === 'mobile_money' && (
+            <div>
+              <label className='block text-sm font-medium text-gray-700 mb-2'>
+                Choisir l'opérateur
+              </label>
+              <div className='grid grid-cols-3 gap-2'>
+                {operateurs.map(op => (
+                  <button
+                    key={op.id}
+                    onClick={() => setOperateur(op.id)}
+                    style={operateur === op.id ? { backgroundColor: op.couleur, borderColor: op.couleur } : {}}
+                    className={`flex flex-col items-center justify-center gap-1.5 py-3 rounded-lg
+                                border-2 text-xs font-semibold transition-all
+                                ${operateur === op.id
+                                  ? 'text-white shadow'
+                                  : 'border-gray-200 text-gray-600 hover:border-gray-300'}`}
+                  >
+                    <Smartphone size={18} /> {op.nom}
+                  </button>
+                ))}
+              </div>
+              <p className='text-[11px] text-gray-400 mt-2 text-center'>
+                Encaissement Mobile Money — intégration à venir
+              </p>
+            </div>
+          )}
 
           {/* Montant reçu (espèces seulement) */}
           {mode === 'especes' && (
@@ -99,7 +150,7 @@ function ModalPaiement({ total, onFermer, onConfirmer }) {
           {/* Bouton confirmer */}
           <button
             disabled={!peutPayer}
-            onClick={() => onConfirmer(mode, Number(montant))}
+            onClick={() => onConfirmer(mode, Number(montant), operateur)}
             className='w-full bg-[#FF6B35] hover:bg-orange-600 disabled:opacity-40
                        text-white font-bold py-3 rounded-lg transition-colors
                        flex items-center justify-center gap-2 text-base'
@@ -121,20 +172,78 @@ function Recu({ vente, onFermer }) {
     hour: '2-digit', minute: '2-digit',
   });
 
+  // QR code de retour (contient le n° de vente) — scannable pour traiter un retour
+  const [qrRetour, setQrRetour] = useState('');
+  const [largeur, setLargeur]   = useState(80); // format thermique : 58 ou 80 mm (§2.3)
+  const [email, setEmail]           = useState('');
+  const [envoiMail, setEnvoiMail]   = useState(false);
+  const [mailEnvoye, setMailEnvoye] = useState(false);
+  useEffect(() => {
+    QRCode.toDataURL('RETOUR:' + (vente.numero || ''), { width: 110, margin: 1 })
+      .then(setQrRetour).catch(() => {});
+  }, [vente.numero]);
+
   // Méthode B : prix HT, TVA ajoutée par-dessus
   const TAUX_TVA   = 18;
+  const totalHTBrut  = vente.totalHTBrut ?? vente.totalHT;
+  const remiseClient = vente.remiseClient ?? 0;
+  const tauxRemise   = vente.tauxRemise ?? 0;
   const totalHT    = vente.totalHT;
   const montantTVA = vente.totalTVA;
   const totalTTC   = vente.totalTTC;
 
-  const modeLabel = {
+  const operateurLabel = { wave: 'Wave', orange: 'Orange Money', free: 'Free Money' }[vente.operateur] || '';
+  const modeLabel = ({
     especes:      'Espèces',
     carte:        'Carte bancaire',
     mobile_money: 'Mobile Money',
-  }[vente.modePaiement] || vente.modePaiement;
+  }[vente.modePaiement] || vente.modePaiement)
+    + (vente.modePaiement === 'mobile_money' && operateurLabel ? ` — ${operateurLabel}` : '');
 
   const fmt = (n) => Number(n).toLocaleString('fr-FR');
   const nbArticles = vente.lignes.reduce((s, l) => s + l.quantite, 0);
+
+  // Impression thermique : injecte la largeur choisie (58 ou 80 mm) puis imprime
+  const imprimer = () => {
+    let st = document.getElementById('ticket-largeur-style');
+    if (!st) {
+      st = document.createElement('style');
+      st.id = 'ticket-largeur-style';
+      document.head.appendChild(st);
+    }
+    st.textContent =
+      `@media print { #recu-imprimable { width: ${largeur}mm; } @page { size: ${largeur}mm auto; margin: 0; } }`;
+    window.print();
+  };
+
+  // Capturer le ticket en image PNG (html2canvas)
+  const capturerImage = async () => {
+    const el = document.getElementById('recu-imprimable');
+    if (!el) return null;
+    const canvas = await html2canvas(el, { scale: 2, backgroundColor: '#ffffff', useCORS: true });
+    return canvas.toDataURL('image/png');
+  };
+
+  // Télécharger le reçu en image
+  const telecharger = async () => {
+    const data = await capturerImage();
+    if (!data) return;
+    const a = document.createElement('a');
+    a.href = data;
+    a.download = `recu-${vente.numero}.png`;
+    a.click();
+  };
+
+  // Envoyer le reçu par e-mail, avec l'image du ticket en pièce jointe (§2.3)
+  const envoyerEmail = async () => {
+    if (!email) return;
+    setEnvoiMail(true);
+    const image = await capturerImage();
+    const res = await envoyerRecuEmail(vente.id, email, image);
+    setEnvoiMail(false);
+    if (res.success) { setMailEnvoye(true); toast.success(res.message || 'Reçu envoyé'); }
+    else toast.error(res.message || "Échec de l'envoi");
+  };
 
   return (
     <div className='fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4 print:bg-white print:p-0'>
@@ -142,7 +251,7 @@ function Recu({ vente, onFermer }) {
 
         {/* En-tête (caché à l'impression) */}
         <div className='p-4 border-b flex items-center justify-between print:hidden'>
-          <h2 className='text-lg font-bold text-gray-800'>Vente enregistrée ✅</h2>
+          <h2 className='text-lg font-bold text-gray-800'>{vente.horsLigne ? 'Vente hors-ligne ⏳' : 'Vente enregistrée ✅'}</h2>
           <button onClick={onFermer} className='text-gray-400 hover:text-gray-600'>
             <X size={20} />
           </button>
@@ -196,8 +305,20 @@ function Recu({ vente, onFermer }) {
           <div className='border-t border-dashed pt-2 space-y-0.5 text-xs'>
             <div className='flex justify-between text-gray-500'>
               <span>Total HT</span>
-              <span>{fmt(totalHT)} FCFA</span>
+              <span>{fmt(totalHTBrut)} FCFA</span>
             </div>
+            {remiseClient > 0 && (
+              <div className='flex justify-between text-gray-700 font-medium'>
+                <span>Remise fidélité (-{tauxRemise}%)</span>
+                <span>-{fmt(remiseClient)} FCFA</span>
+              </div>
+            )}
+            {vente.remiseManuelleMontant > 0 && (
+              <div className='flex justify-between text-gray-700 font-medium'>
+                <span>Remise (-{vente.remiseManuelle}%)</span>
+                <span>-{fmt(vente.remiseManuelleMontant)} FCFA</span>
+              </div>
+            )}
             <div className='flex justify-between text-gray-500'>
               <span>TVA ({TAUX_TVA}%)</span>
               <span>{fmt(montantTVA)} FCFA</span>
@@ -244,6 +365,14 @@ function Recu({ vente, onFermer }) {
             </div>
           )}
 
+          {/* Code de retour (QR avec le n° de vente) */}
+          {qrRetour && (
+            <div className='border-t border-dashed pt-3 mt-2 flex flex-col items-center'>
+              <img src={qrRetour} alt='Code de retour' className='w-20 h-20' />
+              <p className='text-[10px] text-gray-400 mt-1'>Code de retour — à scanner en cas d'échange</p>
+            </div>
+          )}
+
           {/* Pied de ticket — marketing */}
           <div className='border-t border-dashed pt-3 mt-2 text-center'>
             <p className='text-xs font-medium text-gray-700'>
@@ -259,18 +388,62 @@ function Recu({ vente, onFermer }) {
         </div>
 
         {/* Boutons (cachés à l'impression) */}
-        <div className='p-4 flex gap-3 border-t print:hidden'>
-          <button
-            onClick={() => window.print()}
-            className='flex-1 flex items-center justify-center gap-2 border
-                       border-gray-300 text-gray-700 py-2.5 rounded-lg
-                       hover:bg-gray-50 transition-colors text-sm font-medium'
-          >
-            <Printer size={16} /> Imprimer
-          </button>
+        <div className='p-4 border-t print:hidden space-y-2'>
+          {/* Format thermique 58 / 80 mm (§2.3) */}
+          <div className='flex items-center justify-center gap-2 text-xs text-gray-500'>
+            <span>Format&nbsp;:</span>
+            <div className='inline-flex rounded-lg border border-gray-300 overflow-hidden'>
+              {[58, 80].map(w => (
+                <button key={w} onClick={() => setLargeur(w)}
+                  className={`px-3 py-1 font-medium transition-colors
+                    ${largeur === w ? 'bg-[#1E3A5F] text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`}>
+                  {w}mm
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className='flex gap-2'>
+            <button
+              onClick={imprimer}
+              className='flex-1 flex items-center justify-center gap-1.5 border
+                         border-gray-300 text-gray-700 py-2.5 rounded-lg
+                         hover:bg-gray-50 transition-colors text-sm font-medium'
+            >
+              <Printer size={16} /> Imprimer
+            </button>
+            <button
+              onClick={telecharger}
+              className='flex-1 flex items-center justify-center gap-1.5 border
+                         border-[#1E3A5F] text-[#1E3A5F] py-2.5 rounded-lg
+                         hover:bg-blue-50 transition-colors text-sm font-medium'
+            >
+              <Download size={16} /> Image
+            </button>
+            <button
+              onClick={() => genererFacturePDF(vente)}
+              className='flex-1 flex items-center justify-center gap-1.5 border
+                         border-[#FF6B35] text-[#FF6B35] py-2.5 rounded-lg
+                         hover:bg-orange-50 transition-colors text-sm font-medium'
+            >
+              <FileText size={16} /> Facture
+            </button>
+          </div>
+          {/* Reçu dématérialisé par e-mail (§2.3) */}
+          <div className='flex gap-2'>
+            <input type='email' value={email} onChange={e => { setEmail(e.target.value); setMailEnvoye(false); }}
+              placeholder='email@client.com'
+              className='flex-1 border border-gray-300 rounded-lg px-3 py-2.5 text-sm
+                         focus:outline-none focus:ring-2 focus:ring-[#2196F3]' />
+            <button onClick={envoyerEmail} disabled={envoiMail || !email}
+              className='flex items-center gap-1.5 border border-[#1E3A5F] text-[#1E3A5F]
+                         px-4 py-2.5 rounded-lg hover:bg-blue-50 disabled:opacity-50 text-sm font-medium'>
+              {mailEnvoye ? <CheckCircle size={16} /> : <Mail size={16} />}
+              {envoiMail ? '...' : mailEnvoye ? 'Envoyé' : 'E-mail'}
+            </button>
+          </div>
           <button
             onClick={onFermer}
-            className='flex-1 bg-[#1E3A5F] text-white py-2.5 rounded-lg
+            className='w-full bg-[#1E3A5F] text-white py-2.5 rounded-lg
                        hover:bg-blue-900 transition-colors text-sm font-bold'
           >
             Nouvelle vente
@@ -295,15 +468,65 @@ export default function Caisse() {
   const [scannerOuvert, setScannerOuvert] = useState(false);
   const [client, setClient]           = useState(null);  // client fidélité sélectionné
   const [accessoires, setAccessoires] = useState(null);  // { produitNom, liste } | null
+  const [remiseManuelle, setRemiseManuelle] = useState(0); // remise % saisie par le caissier
+  const [enLigne, setEnLigne]         = useState(navigator.onLine); // mode hors-ligne (§3.3)
+  const [nbAttente, setNbAttente]     = useState(0);   // ventes en file d'attente locale
   const rechercheRef = useRef(null);
 
+  // Seuil de remise sans validation manager (cahier §2.2)
+  const SEUIL_REMISE_CAISSIER = 10;
+  const estCaissier = utilisateur?.role === 'caissier';
+
+  // Chargement initial : seulement les 100 premiers (perf sur gros catalogue)
   useEffect(() => {
-    getProduits().then(res => {
+    getProduits({ page: 1, per_page: 100 }).then(res => {
       if (res.success) setProduits(res.data);
       setChargement(false);
     });
     rechercheRef.current?.focus();
   }, []);
+
+  // Recherche CÔTÉ SERVEUR (débouncée 300ms) — tient sur 50 000+ références
+  useEffect(() => {
+    const t = setTimeout(() => {
+      const params = recherche.trim()
+        ? { search: recherche.trim(), page: 1, per_page: 50 }
+        : { page: 1, per_page: 100 };
+      getProduits(params).then(res => {
+        if (res.success) setProduits(res.data);
+      });
+    }, 300);
+    return () => clearTimeout(t);
+  }, [recherche]);
+
+  // ── Mode hors-ligne : suivi de la connexion + synchronisation (§3.3) ──
+  useEffect(() => {
+    setNbAttente(nbEnAttente());
+    const flush = async () => {
+      setEnLigne(true);
+      if (nbEnAttente() > 0) {
+        const r = await synchroniser(creerVente);
+        setNbAttente(nbEnAttente());
+        if (r.envoyees > 0) toast.success(`${r.envoyees} vente(s) hors-ligne synchronisée(s)`);
+      }
+    };
+    const onOffline = () => setEnLigne(false);
+    window.addEventListener('online', flush);
+    window.addEventListener('offline', onOffline);
+    if (navigator.onLine) flush();   // au montage : vider la file si possible
+    return () => {
+      window.removeEventListener('online', flush);
+      window.removeEventListener('offline', onOffline);
+    };
+  }, []);
+
+  // Synchronisation manuelle (bouton)
+  const synchroniserManuel = async () => {
+    if (!navigator.onLine) { toast.error('Toujours hors ligne'); return; }
+    const r = await synchroniser(creerVente);
+    setNbAttente(nbEnAttente());
+    toast.success(r.envoyees > 0 ? `${r.envoyees} vente(s) synchronisée(s)` : 'Rien à synchroniser');
+  };
 
   // ── Recherche scan code-barres ────────────────────────────
   const scannerCodeBarre = async (code) => {
@@ -338,9 +561,19 @@ export default function Caisse() {
   // ── Gestion du panier ─────────────────────────────────────
   // suggererAccessoires : true pour un produit principal, false pour un accessoire
   const ajouterAuPanier = (produit, suggererAccessoires = true) => {
+    const stockDispo = produit.quantite ?? Infinity;
+    if (stockDispo <= 0) {
+      toast.error(`${produit.nom} est en rupture de stock`);
+      return;
+    }
     setPanier(prev => {
       const existe = prev.find(l => l.produit.id === produit.id);
       if (existe) {
+        // Ne pas dépasser le stock disponible
+        if (existe.quantite >= stockDispo) {
+          toast.error(`Stock max atteint pour ${produit.nom} (${stockDispo})`);
+          return prev;
+        }
         return prev.map(l =>
           l.produit.id === produit.id
             ? { ...l, quantite: l.quantite + 1 }
@@ -369,7 +602,17 @@ export default function Caisse() {
   const modifierQuantite = (id, delta) => {
     setPanier(prev =>
       prev
-        .map(l => l.produit.id === id ? { ...l, quantite: l.quantite + delta } : l)
+        .map(l => {
+          if (l.produit.id !== id) return l;
+          const nouvelleQte = l.quantite + delta;
+          // Empêche de dépasser le stock disponible
+          const stockDispo = l.produit.quantite ?? Infinity;
+          if (delta > 0 && nouvelleQte > stockDispo) {
+            toast.error(`Stock max atteint (${stockDispo})`);
+            return l;
+          }
+          return { ...l, quantite: nouvelleQte };
+        })
         .filter(l => l.quantite > 0)
     );
   };
@@ -381,15 +624,26 @@ export default function Caisse() {
   const viderPanier = () => setPanier([]);
 
   // Méthode B : prix affichés HT, TVA ajoutée au paiement
-  const TAUX_TVA  = 18;
-  const totalHT   = panier.reduce(
+  const TAUX_TVA   = 18;
+  // Remise fidélité automatique selon le niveau du client
+  const REMISES_NIVEAU = { standard: 0, vip: 5, or: 10 };
+  const tauxRemise = REMISES_NIVEAU[client?.statut] ?? 0;
+
+  const totalHTBrut  = panier.reduce(
     (sum, l) => sum + (l.produit.prix_vente || 0) * l.quantite, 0
   );
-  const totalTVA  = Math.round(totalHT * TAUX_TVA / 100);
-  const totalTTC  = totalHT + totalTVA;
+  const remiseClient   = Math.round(totalHTBrut * tauxRemise / 100);
+  // Remise manuelle (plafonnée à 10% si caissier)
+  const remiseManuelleAppliquee = estCaissier
+    ? Math.min(remiseManuelle, SEUIL_REMISE_CAISSIER)
+    : remiseManuelle;
+  const remiseManuelleMontant = Math.round(totalHTBrut * remiseManuelleAppliquee / 100);
+  const totalHT      = totalHTBrut - remiseClient - remiseManuelleMontant; // HT après remises
+  const totalTVA     = Math.round(totalHT * TAUX_TVA / 100);
+  const totalTTC     = totalHT + totalTVA;
 
   // ── Finaliser la vente ────────────────────────────────────
-  const confirmerVente = async (modePaiement, montantRecu) => {
+  const confirmerVente = async (modePaiement, montantRecu, operateur) => {
     const lignes = panier.map(l => ({
       produit_id: l.produit.id,
       nom:        l.produit.nom,
@@ -397,46 +651,79 @@ export default function Caisse() {
       prix_vente: l.produit.prix_vente,
     }));
 
-    const res = await creerVente(lignes, modePaiement, client?.id || null);
+    const clientId = client?.id || null;
+
+    // Données communes du reçu (en ligne comme hors ligne)
+    const recuBase = {
+      lignes, totalHTBrut, remiseClient, tauxRemise,
+      remiseManuelle: remiseManuelleAppliquee, remiseManuelleMontant,
+      totalHT, totalTVA, totalTTC, modePaiement, operateur, montantRecu,
+      monnaie:  modePaiement === 'especes' ? Math.max(0, montantRecu - totalTTC) : 0,
+      caissier: `${utilisateur?.prenom || ''} ${utilisateur?.nom || ''}`.trim(),
+      date:     new Date(),
+    };
+
+    // Hors ligne : on n'appelle pas le serveur, on prépare la mise en file
+    const res = navigator.onLine
+      ? await creerVente(lignes, modePaiement, clientId, remiseManuelleAppliquee)
+      : { success: false, message: 'Impossible de contacter le serveur' };
     setModalPaiement(false);
 
     if (res.success) {
       setRecu({
-        lignes,
-        totalHT,
-        totalTVA,
-        totalTTC,
-        modePaiement,
-        montantRecu,
-        monnaie:   modePaiement === 'especes' ? Math.max(0, montantRecu - totalTTC) : 0,
-        numero:    res.numero || '—',
-        caissier:  `${utilisateur?.prenom || ''} ${utilisateur?.nom || ''}`.trim(),
-        client:    client ? { nom: client.nom, points_gagnes: res.points_gagnes || 0 } : null,
-        date:      new Date(),
+        ...recuBase,
+        id:     res.id,
+        numero: res.numero || '—',
+        client: client ? { nom: client.nom, statut: client.statut, points_gagnes: res.points_gagnes || 0 } : null,
       });
-      viderPanier();
-      setClient(null);   // réinitialiser le client pour la prochaine vente
+      viderPanier(); setClient(null); setRemiseManuelle(0);
       toast.success(
-        res.points_gagnes
-          ? `Vente enregistrée ! +${res.points_gagnes} points`
-          : 'Vente enregistrée !'
+        res.points_gagnes ? `Vente enregistrée ! +${res.points_gagnes} points` : 'Vente enregistrée !'
       );
+    } else if (!navigator.onLine || res.message === 'Impossible de contacter le serveur') {
+      // ── Réseau indisponible → file d'attente locale (§3.3) ──
+      setEnLigne(false);
+      const n = mettreEnAttente({ lignes, modePaiement, clientId, remiseManuelle: remiseManuelleAppliquee });
+      setNbAttente(n);
+      setRecu({
+        ...recuBase,
+        horsLigne: true,
+        numero:    'HORS-LIGNE',
+        client:    client ? { nom: client.nom, statut: client.statut, points_gagnes: 0 } : null,
+      });
+      viderPanier(); setClient(null); setRemiseManuelle(0);
+      toast.success('Vente enregistrée hors-ligne — sera synchronisée au retour du réseau', { duration: 3500 });
     } else {
       toast.error(res.message || 'Erreur lors de la vente');
     }
   };
 
-  // ── Produits filtrés ──────────────────────────────────────
-  const produitsFiltres = produits.filter(p =>
-    p.nom.toLowerCase().includes(recherche.toLowerCase()) ||
-    (p.code_barre || '').includes(recherche)
-  );
+  // La recherche est faite côté SERVEUR → on affiche directement les résultats
+  const produitsFiltres = produits;
 
   return (
     <div className='flex flex-col lg:flex-row gap-4 h-[calc(100vh-140px)]'>
 
       {/* ══════════════ ZONE PRODUITS (gauche) ══════════════ */}
       <div className='flex-1 flex flex-col min-w-0'>
+
+        {/* Indicateur de connexion / file d'attente hors-ligne (§3.3) */}
+        {(!enLigne || nbAttente > 0) && (
+          <div className={`flex items-center justify-between gap-2 mb-3 px-3 py-2 rounded-lg text-sm
+            ${enLigne ? 'bg-blue-50 text-[#1E3A5F]' : 'bg-orange-50 text-orange-700'}`}>
+            <span className='flex items-center gap-2 font-medium'>
+              {enLigne
+                ? <><RefreshCw size={15} /> {nbAttente} vente(s) en attente de synchronisation</>
+                : <><WifiOff size={15} /> Hors ligne — les ventes sont enregistrées localement{nbAttente > 0 ? ` (${nbAttente} en attente)` : ''}</>}
+            </span>
+            {enLigne && nbAttente > 0 && (
+              <button onClick={synchroniserManuel}
+                className='flex items-center gap-1 bg-[#1E3A5F] text-white px-3 py-1 rounded-md text-xs font-medium hover:bg-blue-900 transition-colors'>
+                <RefreshCw size={12} /> Synchroniser
+              </button>
+            )}
+          </div>
+        )}
 
         {/* Barre de recherche + bouton scanner */}
         <div className='flex gap-2 mb-4'>
@@ -449,10 +736,21 @@ export default function Caisse() {
               value={recherche}
               onChange={e => setRecherche(e.target.value)}
               onKeyDown={handleRechercheKeyDown}
-              className='w-full pl-9 pr-4 py-3 border border-gray-300 rounded-xl
+              className='w-full pl-9 pr-10 py-3 border border-gray-300 rounded-xl
                          focus:outline-none focus:ring-2 focus:ring-[#2196F3]
                          text-gray-800 bg-white shadow-sm'
             />
+            {/* Bouton effacer (croix) — visible seulement si du texte est saisi */}
+            {recherche && (
+              <button
+                onClick={() => { setRecherche(''); rechercheRef.current?.focus(); }}
+                title='Effacer la recherche'
+                className='absolute right-3 top-3 text-gray-400 hover:text-gray-700
+                           transition-colors'
+              >
+                <X size={18} />
+              </button>
+            )}
           </div>
           {/* Bouton ouvrir la caméra */}
           <button
@@ -609,8 +907,40 @@ export default function Caisse() {
         <div className='p-4 border-t space-y-2'>
           <div className='flex justify-between text-sm text-gray-500'>
             <span>Sous-total HT</span>
-            <span>{totalHT.toLocaleString('fr-FR')} FCFA</span>
+            <span>{totalHTBrut.toLocaleString('fr-FR')} FCFA</span>
           </div>
+          {/* Remise fidélité (seulement si client VIP/Or) */}
+          {tauxRemise > 0 && (
+            <div className='flex justify-between text-sm text-[#FF6B35] font-medium'>
+              <span>Remise {client.statut === 'or' ? 'Or' : 'VIP'} (-{tauxRemise}%)</span>
+              <span>-{remiseClient.toLocaleString('fr-FR')} FCFA</span>
+            </div>
+          )}
+          {/* Remise manuelle (caissier plafonné à 10%) */}
+          {panier.length > 0 && (
+            <div className='flex items-center justify-between text-sm'>
+              <span className='text-gray-500 flex items-center gap-1'>
+                Remise manuelle
+                <input
+                  type='number' min='0' max={estCaissier ? SEUIL_REMISE_CAISSIER : 100}
+                  value={remiseManuelle}
+                  onChange={e => setRemiseManuelle(Math.max(0, Number(e.target.value)))}
+                  className='w-14 border border-gray-300 rounded px-1.5 py-0.5 text-center text-sm
+                             focus:outline-none focus:ring-2 focus:ring-[#2196F3]'
+                />
+                <span className='text-gray-400'>%</span>
+              </span>
+              <span className='text-[#FF6B35] font-medium'>
+                -{remiseManuelleMontant.toLocaleString('fr-FR')} FCFA
+              </span>
+            </div>
+          )}
+          {/* Avertissement seuil caissier */}
+          {estCaissier && remiseManuelle > SEUIL_REMISE_CAISSIER && (
+            <p className='text-xs text-red-500'>
+              ⚠ Remise &gt; {SEUIL_REMISE_CAISSIER}% : validation manager requise (plafonnée à {SEUIL_REMISE_CAISSIER}%)
+            </p>
+          )}
           <div className='flex justify-between text-sm text-gray-500'>
             <span>TVA ({TAUX_TVA}%)</span>
             <span>{totalTVA.toLocaleString('fr-FR')} FCFA</span>

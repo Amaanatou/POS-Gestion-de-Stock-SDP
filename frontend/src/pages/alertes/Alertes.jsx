@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react';
 import { getAlertes, marquerAlerteLue } from '../../config/api';
 import { AlertTriangle, CheckCircle, Bell } from 'lucide-react';
 import toast from 'react-hot-toast';
+import EntetePage from '../../components/ui/EntetePage';
 
 // ── Badge statut alerte ───────────────────────────────────────
 function NiveauBadge({ niveau }) {
@@ -71,17 +72,13 @@ export default function Alertes() {
   return (
     <div>
       {/* ── En-tête ── */}
-      <div className='flex items-center justify-between mb-6'>
-        <div className='flex items-center gap-3'>
-          <h1 className='text-2xl font-bold text-gray-800'>Alertes de stock</h1>
-          {nbNonLues > 0 && (
-            <span className='bg-red-500 text-white text-xs font-bold
-                             px-2 py-0.5 rounded-full'>
-              {nbNonLues}
-            </span>
-          )}
-        </div>
-        {nbNonLues > 0 && (
+      <EntetePage
+        icone={Bell}
+        accent='orange'
+        titre='Alertes de stock'
+        description='Produits sous le seuil ou en rupture, à réapprovisionner.'
+        badge={nbNonLues}
+        actions={nbNonLues > 0 && (
           <button
             onClick={marquerToutesLues}
             className='flex items-center gap-2 text-sm text-gray-500
@@ -91,7 +88,7 @@ export default function Alertes() {
             <CheckCircle size={15} /> Tout marquer comme lu
           </button>
         )}
-      </div>
+      />
 
       {/* ── Filtres ── */}
       <div className='flex gap-2 mb-5'>

@@ -73,6 +73,12 @@ export const modifierProduit = (id, data, imageFile = null) =>
     body: toFormData({ ...data, _method: 'PUT' }, imageFile),
   }).then(r => r.json()).catch(() => ({ success: false, message: 'Erreur réseau' }));
 
+export const archiverProduit = (id) =>
+  request(`/produits/${id}`, { method: 'DELETE', headers: headers() });
+
+export const getVentesProduit = (id) =>
+  request(`/produits/${id}/ventes`, { headers: headers() });
+
 // ─── ACCESSOIRES / PRODUITS LIÉS ─────────────────────────────
 export const getAccessoires = (produitId) =>
   request(`/produits/${produitId}/accessoires`, { headers: headers() });
@@ -88,9 +94,30 @@ export const delierAccessoire = (produitId, accessoireId) =>
     method: 'DELETE', headers: headers(),
   });
 
+// ─── GALERIE D'IMAGES SECONDAIRES ────────────────────────────
+export const getImagesProduit = (produitId) =>
+  request(`/produits/${produitId}/images`, { headers: headers() });
+
+export const ajouterImageProduit = (produitId, imageFile) => {
+  const fd = new FormData();
+  fd.append('image', imageFile);
+  return fetch(`${BASE}/produits/${produitId}/images`, {
+    method: 'POST',
+    headers: headersFormData(),
+    body: fd,
+  }).then(r => r.json()).catch(() => ({ success: false, message: 'Erreur réseau' }));
+};
+
+export const supprimerImageProduit = (produitId, imageId) =>
+  request(`/produits/${produitId}/images/${imageId}`, {
+    method: 'DELETE', headers: headers(),
+  });
+
 // ─── STOCKS ──────────────────────────────────────────────────
-export const getStocks = () =>
-  request('/stocks', { headers: headers() });
+export const getStocks = (params = {}) => {
+  const qs = new URLSearchParams(params).toString();
+  return request(`/stocks${qs ? '?' + qs : ''}`, { headers: headers() });
+};
 
 export const entreeStock = (produit_id, quantite, motif) =>
   request('/stocks/entree', {
@@ -98,14 +125,27 @@ export const entreeStock = (produit_id, quantite, motif) =>
     body: JSON.stringify({ produit_id, quantite, motif }),
   });
 
-export const sortieStock = (produit_id, quantite, motif) =>
+export const sortieStock = (produit_id, quantite, motif, type = 'sortie') =>
   request('/stocks/sortie', {
     method: 'POST', headers: headers(),
-    body: JSON.stringify({ produit_id, quantite, motif }),
+    body: JSON.stringify({ produit_id, quantite, motif, type }),
+  });
+
+export const ajusterStockVirtuel = (produit_id, reserve, commande) =>
+  request('/stocks/virtuel', {
+    method: 'POST', headers: headers(),
+    body: JSON.stringify({ produit_id, reserve, commande }),
   });
 
 export const getMouvements = () =>
   request('/mouvements', { headers: headers() });
+
+// ─── E-MAIL (reçu dématérialisé §2.3) ────────────────────────
+export const envoyerRecuEmail = (vente_id, email, image = null) =>
+  request('/email/recu', {
+    method: 'POST', headers: headers(),
+    body: JSON.stringify({ vente_id, email, image }),
+  });
 
 // ─── ALERTES ─────────────────────────────────────────────────
 export const getAlertes = () =>
@@ -117,23 +157,124 @@ export const marquerAlerteLue = (id) =>
   });
 
 // ─── VENTES (CAISSE POS) ─────────────────────────────────────
-export const creerVente = (lignes, modePaiement, clientId = null) =>
+export const creerVente = (lignes, modePaiement, clientId = null, remiseManuelle = 0) =>
   request('/ventes', {
     method: 'POST', headers: headers(),
-    body: JSON.stringify({ lignes, mode_paiement: modePaiement, client_id: clientId }),
+    body: JSON.stringify({
+      lignes, mode_paiement: modePaiement, client_id: clientId,
+      remise_manuelle: remiseManuelle,
+    }),
+  });
+
+// Historique des ventes (manager/admin)
+export const getVentes = () =>
+  request('/ventes', { headers: headers() });
+
+// Détails d'une vente (en-tête + lignes)
+export const getVenteDetails = (id) =>
+  request(`/ventes/${id}`, { headers: headers() });
+
+// Annuler une vente (restaure le stock)
+export const annulerVente = (id) =>
+  request(`/ventes/${id}/annuler`, {
+    method: 'POST', headers: headers(),
+  });
+
+// Retour de marchandises (restaure le stock des articles retournés)
+export const retournerVente = (id, articles) =>
+  request(`/ventes/${id}/retour`, {
+    method: 'POST', headers: headers(),
+    body: JSON.stringify({ articles }),
   });
 
 // ─── CLIENTS (FIDÉLITÉ) ──────────────────────────────────────
 export const getClients = () =>
   request('/clients', { headers: headers() });
 
-export const rechercherClient = (telephone) =>
-  request(`/clients/recherche/${telephone}`, { headers: headers() });
+export const rechercherClient = (q) =>
+  request(`/clients/recherche/${encodeURIComponent(q)}`, { headers: headers() });
 
 export const creerClient = (data) =>
   request('/clients', {
     method: 'POST', headers: headers(),
     body: JSON.stringify(data),
+  });
+
+export const modifierClient = (id, data) =>
+  request(`/clients/${id}`, {
+    method: 'PUT', headers: headers(),
+    body: JSON.stringify(data),
+  });
+
+export const convertirPoints = (id, points) =>
+  request(`/clients/${id}/convertir`, {
+    method: 'POST', headers: headers(),
+    body: JSON.stringify({ points }),
+  });
+
+// ─── FOURNISSEURS ────────────────────────────────────────────
+export const getFournisseurs = () =>
+  request('/fournisseurs', { headers: headers() });
+
+export const creerFournisseur = (data) =>
+  request('/fournisseurs', {
+    method: 'POST', headers: headers(),
+    body: JSON.stringify(data),
+  });
+
+export const modifierFournisseur = (id, data) =>
+  request(`/fournisseurs/${id}`, {
+    method: 'PUT', headers: headers(),
+    body: JSON.stringify(data),
+  });
+
+export const basculerFournisseur = (id) =>
+  request(`/fournisseurs/${id}/actif`, {
+    method: 'PATCH', headers: headers(),
+  });
+
+// ─── UTILISATEURS (PERSONNEL — ADMIN) ────────────────────────
+export const getUtilisateurs = () =>
+  request('/utilisateurs', { headers: headers() });
+
+export const creerUtilisateur = (data) =>
+  request('/utilisateurs', {
+    method: 'POST', headers: headers(),
+    body: JSON.stringify(data),
+  });
+
+export const modifierUtilisateur = (id, data) =>
+  request(`/utilisateurs/${id}`, {
+    method: 'PUT', headers: headers(),
+    body: JSON.stringify(data),
+  });
+
+export const basculerUtilisateur = (id) =>
+  request(`/utilisateurs/${id}/actif`, {
+    method: 'PATCH', headers: headers(),
+  });
+
+// ─── JOURNAL D'AUDIT (ADMIN) ─────────────────────────────────
+export const getJournal = (action = '') =>
+  request(`/journal${action ? '?action=' + action : ''}`, { headers: headers() });
+
+// ─── SESSIONS DE CAISSE (écarts) ─────────────────────────────
+export const getSessionCourante = () =>
+  request('/caisse-sessions/courante', { headers: headers() });
+
+export const getSessionsCaisse = () =>
+  request('/caisse-sessions', { headers: headers() });
+
+export const ouvrirCaisse = (fondInitial) =>
+  request('/caisse-sessions/ouvrir', {
+    method: 'POST', headers: headers(),
+    body: JSON.stringify({ fond_initial: fondInitial }),
+  });
+
+export const fermerCaisse = (id, montantCompte, note = '') =>
+  request(`/caisse-sessions/${id}/fermer`, {
+    method: 'POST', headers: headers(),
+    body: JSON.stringify({ montant_compte: montantCompte, note }),
   });
 
 // ─── DASHBOARD ───────────────────────────────────────────────

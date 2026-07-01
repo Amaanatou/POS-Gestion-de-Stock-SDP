@@ -20,7 +20,8 @@ export default function Login() {
     if (result.success) {
       connecter(result.token, result.utilisateur);
       toast.success(`Bienvenue ${result.utilisateur.prenom} !`);
-      navigate('/dashboard');
+      // Le caissier va directement à la caisse, les autres au tableau de bord
+      navigate(result.utilisateur.role === 'caissier' ? '/caisse' : '/dashboard');
     } else {
       toast.error(result.message || 'Erreur de connexion');
     }
