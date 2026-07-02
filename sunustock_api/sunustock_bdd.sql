@@ -103,7 +103,7 @@ CREATE TABLE utilisateurs (
 CREATE TABLE clients (
     id         INT AUTO_INCREMENT PRIMARY KEY,
     nom        VARCHAR(100) NOT NULL,
-    telephone  VARCHAR(20) UNIQUE,
+    telephone  VARCHAR(255) UNIQUE,   -- 255 : accueille la valeur chiffrée AES-256
     statut     ENUM('standard','vip','or') DEFAULT 'standard',
     points     INT DEFAULT 0,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -315,7 +315,9 @@ INSERT INTO mouvements_stock (produit_id,type_mouvement,quantite,quantite_avant,
   (9, 'sortie', 3, 35, 32,'Vente caisse',                   3,NOW()),
   (12,'sortie',10,130,120,'Vente caisse',                   4,NOW());
 
--- VENTES HISTORIQUES
+-- VENTES HISTORIQUES (démo désactivée — retirée pour repartir d'un CA à zéro).
+-- Pour réactiver les ventes de démonstration, supprimer les marqueurs /*  et  */ qui encadrent ce bloc.
+/*
 INSERT INTO ventes (numero,client_id,utilisateur_id,total_ht,total_tva,total_ttc,mode_paiement,montant_recu,monnaie_rendue,statut,created_at) VALUES
   ('VNT-20260603-AA1B2C',1,3,21186,3813,25000,'especes',    25000,   0,'validee',DATE_SUB(NOW(),INTERVAL 2 DAY)),
   ('VNT-20260603-D4E5F6',2,4,12711,2288,15000,'mobile_money',15000,  0,'validee',DATE_SUB(NOW(),INTERVAL 2 DAY)),
@@ -343,6 +345,7 @@ INSERT INTO lignes_ventes (vente_id,produit_id,nom_produit,quantite,prix_unitair
   (7,30,'Coca-Cola 1.5L',                 3, 1400,18, 4200),
   (8,3, 'Huile végétale Lesieur 5L',      1, 4000,18, 4000),
   (8,12,'Sel iodé Selaf 1kg',             3,  250,18,  750);
+*/
 
 -- ACCESSOIRES / PRODUITS LIÉS (produit principal → accessoire suggéré, remise %)
 INSERT INTO accessoires_produits (produit_id, accessoire_id, remise_pack) VALUES
