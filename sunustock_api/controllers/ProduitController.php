@@ -6,7 +6,8 @@ class ProduitController {
     private string $uploadUrl;
 
     public function __construct(private PDO $pdo) {
-        $this->uploadDir = __DIR__ . '/../uploads/produits/';
+        // Chemin normalisé (sans "..") — plus fiable pour move_uploaded_file sous Windows
+        $this->uploadDir = dirname(__DIR__) . '/uploads/produits/';
         // URL absolue pour que React (port 5173) puisse charger les images depuis Apache (port 80)
         $protocole       = isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? 'https' : 'http';
         $hote            = $_SERVER['HTTP_HOST'] ?? 'localhost';
@@ -308,15 +309,21 @@ class ProduitController {
             exit;
         }
 
+        // Créer le dossier d'upload s'il n'existe pas (évite l'échec après un redémarrage)
+        if (!is_dir($this->uploadDir)) {
+            @mkdir($this->uploadDir, 0755, true);
+        }
+
         // Générer un nom unique
         $ext      = pathinfo($file['name'], PATHINFO_EXTENSION);
         $nomFich  = uniqid('prod_', true) . '.' . strtolower($ext);
         $chemin   = $this->uploadDir . $nomFich;
 
         if (!move_uploaded_file($file['tmp_name'], $chemin)) {
-            http_response_code(500);
-            echo json_encode(['success' => false, 'message' => 'Erreur lors de l\'enregistrement de l\'image']);
-            exit;
+            // L'échec d'enregistrement de l'image ne doit JAMAIS bloquer la création
+            // du produit : on trace l'erreur côté serveur et on continue sans image.
+            error_log('SunuStock : échec move_uploaded_file vers ' . $chemin);
+            return null;
         }
 
         // Redimensionner si GD disponible (max 800px)
